@@ -10,6 +10,25 @@ riêng đặt trên VPS. Sinh viên đã nhận đề sẽ tự chia sẻ lại 
 
 - **[Thiết kế hệ thống](docs/system-design.md)**: yêu cầu, các phương án đã cân nhắc, kiến trúc, các luồng nghiệp vụ, bảo mật, dữ liệu, API, rủi ro.
 
+## Làm việc nhóm 4 người với AI
+
+Repository đã có **phân công theo vai trò A/B/C/D và prompt làm việc**, chưa gán tên
+thành viên và chưa triển khai mã nguồn. Bắt đầu bằng mốc M0 để dựng nền chung và
+review hợp đồng giao tiếp trước khi các phần phụ thuộc được triển khai song song.
+
+| Tài liệu | Mục đích |
+|---|---|
+| [AGENTS.md](AGENTS.md) | Quy tắc AI phải đọc, phạm vi sửa và tiêu chí bàn giao |
+| [Phân công và mốc tích hợp](docs/team-plan.md) | Vai trò 4 người, file chung, phụ thuộc và quy trình PR |
+| [Prompt cho từng người](docs/ai-prompts.md) | Prompt bootstrap M0, prompt chung, A/B/C/D và kiểm tra tích hợp |
+| [Danh mục hợp đồng](docs/contracts.md) | Các interface cần chốt; hiện chưa có hợp đồng v1 thực thi |
+| [Quyết định và vấn đề mở](docs/decisions.md) | Những điểm cần nhóm thống nhất |
+| [Mẫu bàn giao](docs/handoffs/README.md) | Cách báo kết quả và đề nghị đổi hợp đồng |
+| [Checklist tích hợp](docs/integration-checklist.md) | Điều kiện nghiệm thu theo từng mốc |
+
+Mỗi người dùng checkout/worktree riêng. Dán prompt chung rồi prompt vai trò từ
+`docs/ai-prompts.md`; không để bốn AI sửa đồng thời cùng một thư mục làm việc.
+
 ## Tính năng chính
 
 - **Giao bài:** giảng viên tạo bài và nhận về một code phrase (ví dụ `sao-mai-xanh-42`) để đưa cho cả lớp.
