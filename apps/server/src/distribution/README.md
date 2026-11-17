@@ -4,6 +4,13 @@ Phân phối đề: cấp vé, chọn nguồn theo **phương án A**, theo dõi
 
 Thiết kế: mục 6, 7.4 và 10 (phần WebSocket) trong [system-design.md](../../../../docs/system-design.md).
 
+## Trạng thái hiện tại
+
+Chưa triển khai. Bị chặn bởi shared v1, REST/WS envelope, quyền xác nhận vé,
+ngữ nghĩa reconnect/queue và chính sách báo sai hash. Xem các đề xuất của D trong
+[`D-contract-requests.md`](../../../../docs/handoffs/D-contract-requests.md).
+Không đánh dấu thuật toán chọn nguồn hay xử lý vé là hoàn tất khi mới có checklist.
+
 ## Việc cần làm
 
 - [ ] WebSocket `/ws`:

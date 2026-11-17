@@ -4,6 +4,22 @@ Kiểm thử đầu–cuối với server, relay và nhiều app (hoặc client 
 
 Thiết kế: mục 2 (chống mục tiêu), 7, 14 và 15 trong [system-design.md](../../docs/system-design.md).
 
+## Trạng thái
+
+Đây hiện là kế hoạch kiểm thử, chưa có harness hay test nào chạy được. E2E cần
+server, `packages/shared`, croc-engine và client không giao diện từ các vai trò
+C/B; D điều phối môi trường/kịch bản nhưng chủ module sửa lỗi thuộc phần mình.
+
+## Phụ thuộc trước khi tự động hóa
+
+- Shared v1 chốt ticket ID, trạng thái, lỗi, correlation và quy tắc retry.
+- Worker cung cấp kiểm soát được giới hạn đồng thời, timeout, huỷ và fixture file.
+- Server có cấu hình test cô lập, reset dữ liệu an toàn và tài khoản fixture.
+- Client test dùng đúng interface main/croc-engine; không tự tạo giao thức mock
+  riêng hoặc dùng mock để tuyên bố đã xác minh truyền file thật.
+- Mỗi kết quả ghi commit, lệnh, môi trường và phân biệt unit/mock, local relay,
+  VPS/mạng thật.
+
 ## Việc cần làm
 
 - [ ] Môi trường kiểm thử:
@@ -16,7 +32,7 @@ Thiết kế: mục 2 (chống mục tiêu), 7, 14 và 15 trong [system-design.m
 - [ ] Giảng viên tạo bài. Code phrase chỉ dùng được sau khi VPS đã xác minh đề.
 - [ ] Sinh viên 1 nhận đề từ VPS. Sinh viên 2 cùng LAN nhận từ sinh viên 1.
 - [ ] Hai máy cùng IP công khai nhưng khác subnet thì **không** được ghép là cùng LAN.
-- [ ] Seeder gửi file đã bị sửa: phát hiện được, seeder bị cấm, sinh viên nhận lại từ nguồn khác.
+- [ ] File từ seeder sai manifest: phát hiện và fallback; chỉ loại/cấm nguồn theo chính sách có bằng chứng đã được duyệt.
 - [ ] Seeder tắt máy giữa chừng: vé hết hạn, sinh viên nhận lại từ nguồn khác.
 - [ ] VPS đã đầy phiên: dùng seeder qua Internet, hoặc xếp hàng rồi nhận được `ticket.ready`.
 - [ ] Giảng viên tắt app: sinh viên vẫn nhận đề và nộp bài được.
@@ -31,3 +47,9 @@ Thiết kế: mục 2 (chống mục tiêu), 7, 14 và 15 trong [system-design.m
 - [ ] Đo thời gian phát đề cho cả lớp.
 - [ ] Đo tỉ lệ sinh viên nhận đề qua LAN.
 - [ ] Ghi lại lỗi gặp phải.
+
+## Tiêu chí báo cáo
+
+Không đánh dấu đạt các kịch bản LAN, firewall, VPS, nhiều hệ điều hành hoặc tải
+thật khi chỉ dùng mock/container trên cùng máy. Ghi rõ kịch bản chưa chạy và lý do
+trong bàn giao D; giao lỗi chức năng về đúng chủ module theo `team-plan.md`.

@@ -5,6 +5,13 @@ Các module khác chỉ yêu cầu worker "mở một lượt nhận/gửi". Kh�
 
 Thiết kế: mục 5, 7.3, 7.5, 7.6 và 13 trong [system-design.md](../../../../docs/system-design.md).
 
+## Trạng thái hiện tại
+
+Chưa triển khai. Cần shared ticket/manifest schema, interface croc-engine từ B,
+quyền worker xác nhận kết quả và cấu hình server/data directory được C chốt. Xem
+[yêu cầu hợp đồng D](../../../../docs/handoffs/D-contract-requests.md). Các luồng
+nhận/gửi, giới hạn dung lượng và phục hồi restart chưa được kiểm thử.
+
 ## Việc cần làm
 
 - [ ] Bố cục `/data`:
