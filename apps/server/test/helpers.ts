@@ -1,5 +1,7 @@
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { createAccounts, type Accounts } from '../src/accounts/index.js';
+import { createAssignments, type Assignments } from '../src/assignments/index.js';
+import { FakeTicketIssuer } from '../src/testing/fake-ticket-issuer.js';
 import type { Argon2Params } from '../src/accounts/password.js';
 import { buildApp, type AppDeps } from '../src/app.js';
 import { loadConfig, type ServerConfig } from '../src/config.js';
@@ -54,6 +56,11 @@ export interface AccountsHarness {
   db: Db;
   clock: FakeClock;
   accounts: Accounts;
+  assignments: Assignments;
+  /** Dịch vụ vé giả thay cho D. */
+  issuer: FakeTicketIssuer;
+  /** Số seeder online theo bài — thay cho thống kê của D. */
+  seeding: Map<string, number>;
   /** Gọi API như client thật (JSON, header Bearer). */
   call(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, options?: { token?: string; body?: unknown }): Promise<LightMyRequestResponse>;
   loginLecturer(): Promise<string>;
@@ -61,18 +68,33 @@ export interface AccountsHarness {
 
 export const LECTURER = { username: 'giangvien', fullName: 'Nguyễn Văn Giảng', password: 'mat-khau-gv-1' };
 
-/** Server có module tài khoản, CSDL trong bộ nhớ, đồng hồ giả và sẵn một tài khoản GV. */
-export async function accountsHarness(options: { logStream?: NodeJS.WritableStream; logLevel?: string } = {}): Promise<AccountsHarness> {
+/**
+ * Server có module tài khoản + bài tập, CSDL trong bộ nhớ, đồng hồ giả, dịch vụ vé giả và sẵn
+ * một tài khoản GV. `env` ghi đè cấu hình (ví dụ LIMIT_*).
+ */
+export async function accountsHarness(
+  options: { logStream?: NodeJS.WritableStream; logLevel?: string; env?: Record<string, string> } = {},
+): Promise<AccountsHarness> {
   const db = testDb();
   const clock = new FakeClock();
+  const config = testConfig({ ...(options.logLevel ? { LOG_LEVEL: options.logLevel } : {}), ...options.env });
   const accounts = createAccounts({ db, clock, passwordParams: FAST_ARGON2 });
   await accounts.service.createLecturer(LECTURER);
+  const issuer = new FakeTicketIssuer(clock);
+  const seeding = new Map<string, number>();
+  const assignments = createAssignments({
+    db,
+    clock,
+    limits: config.limits,
+    tickets: issuer,
+    seeding: { seedingCount: (id) => seeding.get(id) ?? 0 },
+  });
   const app = await buildApp({
-    config: testConfig(options.logLevel ? { LOG_LEVEL: options.logLevel } : {}),
+    config,
     db,
     clock,
     sessions: accounts.sessions,
-    modules: [accounts.routes],
+    modules: [accounts.routes, assignments.routes],
     ...(options.logStream ? { logStream: options.logStream } : {}),
   });
   const call: AccountsHarness['call'] = (method, url, { token, body } = {}) =>
@@ -89,5 +111,28 @@ export async function accountsHarness(options: { logStream?: NodeJS.WritableStre
     if (res.statusCode !== 200) throw new Error(`Đăng nhập GV lỗi: ${res.body}`);
     return res.json().token as string;
   };
-  return { app, db, clock, accounts, call, loginLecturer };
+  return { app, db, clock, accounts, assignments, issuer, seeding, call, loginLecturer };
+}
+
+/** Tên ngắn hơn cho test các mốc sau. */
+export const serverHarness = accountsHarness;
+
+/**
+ * Tạo sẵn các SV đã kích hoạt qua API thật (nhập CSV → kích hoạt). Trả token và id theo MSSV.
+ */
+export async function activatedStudents(
+  h: AccountsHarness,
+  gvToken: string,
+  mssvs: string[],
+): Promise<Record<string, { id: string; token: string }>> {
+  const csv = mssvs.map((m, i) => `${m},Sinh Viên ${i + 1}`).join('\n');
+  const imported = await h.call('POST', '/students/import', { token: gvToken, body: { csv } });
+  const result: Record<string, { id: string; token: string }> = {};
+  for (const created of imported.json().created as { student: { id: string; mssv: string }; activation: { activationCode: string } }[]) {
+    const res = await h.call('POST', '/auth/activate', {
+      body: { mssv: created.student.mssv, activationCode: created.activation.activationCode, newPassword: 'mat-khau-sv-1' },
+    });
+    result[created.student.mssv] = { id: created.student.id, token: res.json().token };
+  }
+  return result;
 }

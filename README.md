@@ -1,7 +1,7 @@
 # croc-classroom — Giao–Nộp bài tập qua croc
 
-> Tên dự án tạm. Trạng thái: **M0 xong phần C (hợp đồng v1 chờ review); M1 phía server đã có tài khoản.
-> Chưa có giao/nhận/nộp bài, chưa có app desktop, chưa có engine croc thật.**
+> Tên dự án tạm. Trạng thái: **phía C xong M0 (hợp đồng v1 chờ review), M1 (tài khoản), M2 (bài tập,
+> `/join`). Chưa có truyền file, nộp bài, app desktop, engine croc thật.**
 
 Ứng dụng desktop (Electron) giúp **một giảng viên** giao bài cho sinh viên bằng **một code phrase duy nhất**
 và nhận bài nộp. File được truyền bằng [croc](https://github.com/schollz/croc), có mã hoá đầu–cuối, qua relay
@@ -54,7 +54,8 @@ npm start -w @croc-classroom/server
 
 Server tạo `apps/server/data/db/croc-classroom.sqlite` và áp dụng migration khi khởi động;
 `GET /health` trả trạng thái. Đã có: tài khoản (đăng nhập, kích hoạt, nhập CSV, quản lý SV), `/me`,
-`/config`. Bài tập, nhận đề, nộp bài thêm từ M2.
+`/config`, bài tập (tạo, sửa, xoá, thống kê) và `/join`. Chưa có dịch vụ vé của D nên tạo bài trả 503;
+đặt `DEV_FAKE_TRANSFERS=true` trong `.env` để bài tự phát hành mà không truyền file (chỉ để thử giao diện).
 
 App desktop chưa chạy được: khung Electron do B dựng. Giao diện có thể làm trước với
 `createMockCrocApi()` từ `@croc-classroom/shared/mocks`.

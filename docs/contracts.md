@@ -10,6 +10,7 @@ triển khai phần phụ thuộc vào một nhóm hợp đồng khi cột "Revi
 |---|---|---|---|---|
 | v1 (đề xuất) | 2026-11-17 | `C/Backend` | Bản đầu cho REST, WS, IPC, engine, vé/worker, dữ liệu, manifest | Chờ review |
 | v1 (sửa trong bản đề xuất) | 2026-11-17 | `C/Backend` | `POST /auth/logout` đổi `auth: 'any'` → `'none'` để gọi lại bằng token đã hết hạn vẫn 204 | Chờ review |
+| v1 (bổ sung nội bộ server, M2) | 2026-11-17 | `C/Backend` | `TransferOutcomeHandler.onFetchVerified`; port `SeedingStats`; cột `assignments.storage_ref` (migration 2) | Chờ D review |
 
 `CONTRACT_VERSION` trong `packages/shared/src/constants.ts` phải khớp bảng này; `/health` trả về số này.
 
@@ -26,6 +27,7 @@ không chép lại schema.
 | IPC | [`packages/shared/src/ipc.ts`](../packages/shared/src/ipc.ts) | B | A | |
 | croc-engine | [`packages/croc-engine/src/types.ts`](../packages/croc-engine/src/types.ts) | B | D | |
 | Vé và worker (nội bộ server) | [`apps/server/src/ports/transfers.ts`](../apps/server/src/ports/transfers.ts) | D | C, B | |
+| Thống kê seeder (nội bộ server) | [`apps/server/src/ports/seeding.ts`](../apps/server/src/ports/seeding.ts) | D | C | |
 | Manifest | [`packages/shared/src/manifest.ts`](../packages/shared/src/manifest.ts), [`node/manifest-fs.ts`](../packages/shared/src/node/manifest-fs.ts) | B, C | D | |
 | Schema CSDL | [`apps/server/src/db/migrations.ts`](../apps/server/src/db/migrations.ts) | C | D | |
 
@@ -62,6 +64,12 @@ Kết quả chạy với mock không chứng minh luồng thật. Thông tin đ�
   `ACCOUNT_NOT_ACTIVATED`; `ACCOUNT_DISABLED` chỉ trả khi mật khẩu đúng. Kích hoạt: sai/hết hạn/đã
   dùng mã hoặc MSSV không có đều là `ACTIVATION_INVALID`.
 - `RATE_LIMITED` có `details.retryAfterSeconds`.
+- Tạo bài: manifest sai cú pháp/đường dẫn → `VALIDATION_FAILED` (`details` chỉ vị trí); quá số file →
+  `MANIFEST_INVALID`; quá dung lượng → `PAYLOAD_TOO_LARGE`; không mở được vé → lỗi của dịch vụ vé
+  (thường `CAPACITY_EXHAUSTED`) và bài KHÔNG được tạo.
+- `/join`: nhập sai code tính vào giới hạn 10 lần / 5 phút / (SV + IP); code sai định dạng là
+  `VALIDATION_FAILED` và không tính. Đủ `maxStudentsPerAssignment` → `ASSIGNMENT_FULL` (SV đã tham gia vẫn vào lại được).
+- Thống kê bài: xem chú thích `AssignmentStatsSchema` trong `dto.ts` (`late` tính theo bản nộp mới nhất).
 - Server kiểm tra phản hồi theo schema trước khi gửi (`VALIDATE_RESPONSES`); lệch hợp đồng thành `INTERNAL`.
 
 **Xử lý yêu cầu lặp**

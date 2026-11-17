@@ -43,8 +43,24 @@ export type SubmissionCommitResult =
 
 /** C triển khai; D (worker/dịch vụ vé) gọi khi một lượt truyền kết thúc. */
 export interface TransferOutcomeHandler {
-  /** Worker đã nhận đủ đề và xác minh theo manifest, đã chuyển vào kho. C chuyển bài sang da_phat_hanh. */
+  /**
+   * Worker đã nhận đủ đề và xác minh theo manifest, đã chuyển vào kho tại `storageRef`. C chuyển bài sang
+   * `da_phat_hanh` (gọi lặp thì không làm gì; bài đã bị xoá thì bỏ qua). Sau khi hàm trả về, D gửi WS
+   * `assignment.published` cho GV và ghi `holdings` cho GV (GV là seeder của bài).
+   */
   onUploadStored(event: { ticketId: string; assignmentId: string; storageRef: string; verifiedAt: string }): Promise<void>;
+
+  /**
+   * SV (bên nhận vé `phat_de`) đã báo xác minh xong đề. C ghi `participants.received_at/received_from`
+   * (lần đầu; báo lại không ghi đè). D tự ghi `holdings` của SV. Bổ sung ở M2, chờ D review.
+   */
+  onFetchVerified(event: {
+    ticketId: string;
+    assignmentId: string;
+    studentId: string;
+    source: 'vps' | 'peer' | 'lecturer';
+    verifiedAt: string;
+  }): Promise<void>;
 
   /**
    * Worker đã nhận và xác minh bài nộp, đã chuyển vào kho tại `storageRef`. C, trong một transaction:

@@ -118,4 +118,14 @@ CREATE INDEX tickets_open ON tickets (status, expires_at) WHERE status IN ('cho'
 CREATE INDEX tickets_assignment ON tickets (assignment_id);
 `,
   },
+  {
+    id: 2,
+    name: 'assignments-storage-ref',
+    sql: `
+-- Tham chiếu mờ tới bản đề đã xác minh trong kho VPS, do worker (D) cấp qua onUploadStored.
+ALTER TABLE assignments ADD COLUMN storage_ref TEXT;
+-- GET /my/assignments tra theo SV.
+CREATE INDEX participants_student ON participants (student_id);
+`,
+  },
 ];

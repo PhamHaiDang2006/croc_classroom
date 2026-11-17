@@ -105,6 +105,21 @@ thay đổi các yêu cầu đã chốt ở đó.
 - `POST /auth/logout` đổi sang `auth: 'none'` (xem contracts.md, bảng phiên bản).
 - CLI không nhận mật khẩu qua tham số dòng lệnh (lộ trong lịch sử shell và danh sách tiến trình).
 
+### D-008 — Bài tập và nhập code (M2, phía C)
+
+- 2026-11-17 · **Đề xuất** · Người đề xuất: C · Review: D, B (chưa)
+- Tạo bài: ghi bài trước (vé của D tham chiếu `assignments` qua khoá ngoại) rồi mới mở vé `gv_tai_len`;
+  mở vé lỗi thì xoá bài, để không có bài treo mà GV không tải lên được.
+- Xoá bài: gọi `purgeAssignment` của D (huỷ vé, báo seeder, xoá file) TRƯỚC, xong mới xoá dữ liệu; D lỗi
+  thì bài còn nguyên để GV xoá lại, tránh trường hợp xoá dữ liệu mà file vẫn nằm trên VPS.
+- Phân chia ghi dữ liệu với D: C ghi `assignments.status/published_at/storage_ref` (qua `onUploadStored`)
+  và `participants.received_*` (qua `onFetchVerified` — bổ sung vào interface). D ghi `holdings` và gửi
+  WS `assignment.published` sau khi `onUploadStored` trả về. `stats.seeding` lấy từ `SeedingStats` của D.
+- Thêm cột `assignments.storage_ref` (migration 2): tham chiếu mờ tới bản đề trong kho, do worker cấp.
+- Server chạy được trước khi có D: mặc định `unavailableTicketIssuer` (tạo bài → 503 có thông báo rõ);
+  `DEV_FAKE_TRANSFERS=true` dùng vé giả, bài tự phát hành sau ~1 giây, log cảnh báo khi khởi động —
+  chỉ để A/B thử giao diện với server thật, không bao giờ bật trên VPS.
+
 ## Mẫu ghi một quyết định
 
 - Mã / ngày / trạng thái: đề xuất, đã thống nhất hoặc thay thế.

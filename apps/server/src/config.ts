@@ -18,6 +18,11 @@ export interface ServerConfig {
   validateResponses: boolean;
   /** Giới hạn kích thước body JSON (byte). */
   bodyLimitBytes: number;
+  /**
+   * CHỈ ĐỂ PHÁT TRIỂN: dùng dịch vụ vé giả, bài tự phát hành sau khi tạo mà không truyền file.
+   * Mặc định tắt. Không bật trên VPS thật.
+   */
+  devFakeTransfers: boolean;
 }
 
 export class ConfigError extends Error {
@@ -42,6 +47,7 @@ const EnvSchema = z.object({
   RELAY_PASS: z.string().min(8, 'RELAY_PASS tối thiểu 8 ký tự'),
   VALIDATE_RESPONSES: boolFromEnv.default(true),
   BODY_LIMIT_BYTES: z.coerce.number().int().positive().default(8 * 1024 * 1024),
+  DEV_FAKE_TRANSFERS: boolFromEnv.default(false),
 });
 
 /**
@@ -91,5 +97,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     limits,
     validateResponses: e.VALIDATE_RESPONSES,
     bodyLimitBytes: e.BODY_LIMIT_BYTES,
+    devFakeTransfers: e.DEV_FAKE_TRANSFERS,
   };
 }

@@ -110,9 +110,11 @@ export const AssignmentStatsSchema = z.object({
   received: z.int().nonnegative(),
   /** Máy đang online và chia sẻ đề (kể cả GV). Do distribution (D) cung cấp. */
   seeding: z.int().nonnegative(),
+  /** SV có ít nhất một bản nộp đã xác minh (gồm cả nộp trễ). */
   submitted: z.int().nonnegative(),
+  /** Trong số `submitted`: SV có bản nộp MỚI NHẤT bị trễ hạn. */
   late: z.int().nonnegative(),
-  /** Tính trên SV đã tham gia (system-design mục 7.6). */
+  /** = participants − submitted (system-design mục 7.6: tính trên SV đã nhập code). */
   notSubmitted: z.int().nonnegative(),
 });
 export type AssignmentStats = z.infer<typeof AssignmentStatsSchema>;

@@ -28,9 +28,13 @@ Mỗi lần chạy ghi commit, môi trường, lệnh hoặc bước thực hi�
 ## M2 — Giao và nhận đề
 
 - [ ] GV gửi đề thật; code chỉ dùng sau khi VPS xác minh đầy đủ.
+  — Phía C đạt: `/join` từ chối bài `dang_tai_len`, bài chỉ phát hành khi worker gọi `onUploadStored`
+  (test + server thật với vé giả). Gửi đề thật: chờ B (engine, app), D (vé, worker).
 - [ ] SV join/fetch, nhận từ VPS và xác minh manifest; cache tách bản làm bài.
-- [ ] Sai hash, file thiếu/thừa, timeout và huỷ được xử lý, không sót tiến trình.
+  — `/join` trả manifest (C, đạt). fetch, nhận, cache: chờ B, D.
+- [ ] Sai hash, file thiếu/thừa, timeout và huỷ được xử lý, không sót tiến trình. — B, D.
 - [ ] Tải lên lỗi có thể xin lại vé; reconnect lấy được trạng thái thực tế.
+  — Xin lại vé `POST /assignments/:id/upload-ticket` (C, đạt với vé giả). `GET /tickets/:id`, WS: chờ D.
 
 ## M3 — Nộp và thu
 
