@@ -2,8 +2,8 @@
 
 ## Trạng thái và nguồn tham chiếu
 
-Repository đang ở M0: có workspace, hợp đồng v1 trong `packages/shared` (chờ review) và khung
-server chỉ có `/health`. Chưa có tính năng nghiệp vụ, app desktop hay engine croc thật.
+Repository: có workspace, hợp đồng v1 trong `packages/shared` (chờ review), server có module tài khoản
+(M1). Chưa có giao/nhận/nộp bài, app desktop hay engine croc thật.
 Các prompt là hướng dẫn công việc tương lai, không phải bằng chứng đã triển khai.
 
 Trước khi làm, đọc:

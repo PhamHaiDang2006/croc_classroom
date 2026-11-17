@@ -9,6 +9,7 @@ triển khai phần phụ thuộc vào một nhóm hợp đồng khi cột "Revi
 | Phiên bản | Ngày | Branch / PR | Nội dung | Trạng thái |
 |---|---|---|---|---|
 | v1 (đề xuất) | 2026-11-17 | `C/Backend` | Bản đầu cho REST, WS, IPC, engine, vé/worker, dữ liệu, manifest | Chờ review |
+| v1 (sửa trong bản đề xuất) | 2026-11-17 | `C/Backend` | `POST /auth/logout` đổi `auth: 'any'` → `'none'` để gọi lại bằng token đã hết hạn vẫn 204 | Chờ review |
 
 `CONTRACT_VERSION` trong `packages/shared/src/constants.ts` phải khớp bảng này; `/health` trả về số này.
 
@@ -57,6 +58,10 @@ Kết quả chạy với mock không chứng minh luồng thật. Thông tin đ�
 - `VALIDATION_FAILED` liệt kê mọi trường sai của params/query/body cùng lúc trong `details`.
 - Tài nguyên không thuộc quyền người gọi trả `NOT_FOUND`, không tiết lộ sự tồn tại.
 - Code phrase sai hoặc bài chưa phát hành đều trả `CODE_PHRASE_INVALID`.
+- Đăng nhập: không có tài khoản hoặc sai mật khẩu → `INVALID_CREDENTIALS`; SV chưa kích hoạt →
+  `ACCOUNT_NOT_ACTIVATED`; `ACCOUNT_DISABLED` chỉ trả khi mật khẩu đúng. Kích hoạt: sai/hết hạn/đã
+  dùng mã hoặc MSSV không có đều là `ACTIVATION_INVALID`.
+- `RATE_LIMITED` có `details.retryAfterSeconds`.
 - Server kiểm tra phản hồi theo schema trước khi gửi (`VALIDATE_RESPONSES`); lệch hợp đồng thành `INTERNAL`.
 
 **Xử lý yêu cầu lặp**

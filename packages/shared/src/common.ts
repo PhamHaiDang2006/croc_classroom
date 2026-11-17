@@ -28,7 +28,10 @@ export function normalizeMssv(mssv: string): string {
 export const PasswordSchema = z.string().min(8, 'Mật khẩu tối thiểu 8 ký tự').max(128);
 
 /** Tên đăng nhập giảng viên. */
-export const UsernameSchema = z.string().trim().regex(/^[A-Za-z0-9._-]{3,64}$/);
+export const UsernameSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9._-]{3,64}$/, 'Tên đăng nhập 3–64 ký tự, chỉ gồm chữ không dấu, số, dấu chấm, gạch dưới, gạch ngang');
 
 /** Tên thiết bị do app gửi khi đăng nhập, chỉ để hiển thị. */
 export const DeviceNameSchema = z.string().trim().max(100);

@@ -44,6 +44,16 @@ const EnvSchema = z.object({
   BODY_LIMIT_BYTES: z.coerce.number().int().positive().default(8 * 1024 * 1024),
 });
 
+/**
+ * Chỉ lấy đường dẫn CSDL (cho lệnh CLI, không cần cấu hình relay).
+ * Cùng quy tắc với loadConfig: DB_PATH, nếu không có thì `<DATA_DIR>/db/croc-classroom.sqlite`.
+ */
+export function loadDbPath(env: Record<string, string | undefined> = process.env): string {
+  if (env.DB_PATH === ':memory:') return ':memory:';
+  const dataDir = resolve(env.DATA_DIR || './data');
+  return resolve(env.DB_PATH || join(dataDir, 'db', 'croc-classroom.sqlite'));
+}
+
 /** maxAssignmentBytes → LIMIT_MAX_ASSIGNMENT_BYTES */
 export function limitEnvName(key: keyof Limits): string {
   return `LIMIT_${key.replace(/[A-Z]/g, (c) => `_${c}`).toUpperCase()}`;

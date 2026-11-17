@@ -17,6 +17,8 @@ export interface AppDeps {
   sessions?: SessionResolver;
   /** accounts, assignments, submissions (C), distribution (D)… thêm dần theo mốc. */
   modules?: RouteModule[];
+  /** Ghi log ra stream khác stdout (test kiểm tra log không chứa secret). */
+  logStream?: NodeJS.WritableStream;
 }
 
 interface FastifyLikeError {
@@ -44,6 +46,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         paths: ['req.headers.authorization', 'req.headers.cookie', '*.password', '*.crocCode', '*.token'],
         censor: '[an]',
       },
+      ...(deps.logStream ? { stream: deps.logStream } : {}),
     },
   });
 
@@ -78,6 +81,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       db.prepare('SELECT 1').get();
       return { status: 'ok' as const, contractVersion: CONTRACT_VERSION, serverTime: nowIso(clock) };
     },
+    routeDeps,
+  );
+
+  // Địa chỉ + mật khẩu relay chỉ đưa cho người đã đăng nhập (system-design mục 8).
+  registerEndpoint(
+    app,
+    endpoints.config,
+    async () => ({ relay: config.relay, limits: config.limits, serverTime: nowIso(clock) }),
     routeDeps,
   );
 

@@ -1,7 +1,7 @@
 # croc-classroom — Giao–Nộp bài tập qua croc
 
-> Tên dự án tạm. Trạng thái: **đang ở M0 — có workspace, hợp đồng v1 (chờ review) và khung server;
-> chưa có tính năng nghiệp vụ, chưa có app desktop, chưa có engine croc thật.**
+> Tên dự án tạm. Trạng thái: **M0 xong phần C (hợp đồng v1 chờ review); M1 phía server đã có tài khoản.
+> Chưa có giao/nhận/nộp bài, chưa có app desktop, chưa có engine croc thật.**
 
 Ứng dụng desktop (Electron) giúp **một giảng viên** giao bài cho sinh viên bằng **một code phrase duy nhất**
 và nhận bài nộp. File được truyền bằng [croc](https://github.com/schollz/croc), có mã hoá đầu–cuối, qua relay
@@ -48,11 +48,13 @@ Chạy server ở máy (cần build trước):
 ```bash
 cp apps/server/.env.example apps/server/.env   # sửa RELAY_ADDRESS, RELAY_PASS
 npm run build
+npm run cli -w @croc-classroom/server -- create-lecturer --username giangvien --full-name "Nguyễn Văn Giảng"
 npm start -w @croc-classroom/server
 ```
 
 Server tạo `apps/server/data/db/croc-classroom.sqlite` và áp dụng migration khi khởi động;
-`GET /health` trả trạng thái. Hiện mới có `/health`; các route nghiệp vụ thêm dần từ M1.
+`GET /health` trả trạng thái. Đã có: tài khoản (đăng nhập, kích hoạt, nhập CSV, quản lý SV), `/me`,
+`/config`. Bài tập, nhận đề, nộp bài thêm từ M2.
 
 App desktop chưa chạy được: khung Electron do B dựng. Giao diện có thể làm trước với
 `createMockCrocApi()` từ `@croc-classroom/shared/mocks`.

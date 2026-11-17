@@ -35,13 +35,27 @@ Module mới export một `RouteModule` và được thêm vào `buildApp({ modu
 - [x] Khởi tạo Fastify + TypeScript trong workspace; dùng [`packages/shared`](../../packages/shared/README.md). (croc-engine dùng ở vps-worker — D.)
 - [x] Đọc cấu hình từ biến môi trường: địa chỉ/mật khẩu relay, thư mục dữ liệu, các giới hạn ở mục 13. (Tên miền thuộc deploy — D.)
 - [x] SQLite: tạo các bảng ở mục 9 bằng migration; bật WAL.
-- [ ] Middleware:
+- [x] Middleware:
   - [x] Đọc token Bearer, phân quyền theo vai trò (`lecturer` / `student`) trong `registerEndpoint`.
-  - [ ] Tra phiên thật trong bảng `sessions` (M1, accounts).
-  - [ ] Giới hạn tần suất (M1).
+  - [x] Tra phiên thật trong bảng `sessions` (`accounts/sessions.ts`).
+  - [x] Giới hạn tần suất đăng nhập, kích hoạt (`http/rate-limit.ts`); nhập code phrase dùng lại ở M2.
 - [x] Lấy IP thật của client khi chạy sau Caddy, chỉ tin proxy khai báo trong `TRUST_PROXY`.
-- [ ] Endpoint `/config` trả địa chỉ, mật khẩu relay và các giới hạn, chỉ cho người đã đăng nhập (M1).
-- [ ] Lệnh CLI chạy trong container: `create-lecturer`, `reset-lecturer-password` (M1).
+- [x] Endpoint `/config` trả địa chỉ, mật khẩu relay và các giới hạn, chỉ cho người đã đăng nhập.
+- [x] Lệnh CLI chạy trong container: `create-lecturer`, `reset-lecturer-password` (`src/cli.ts`).
+
+### Lệnh CLI
+
+Mật khẩu không truyền qua tham số: có bàn phím thì nhập ẩn hai lần, không có thì đọc dòng đầu của stdin.
+
+```bash
+npm run cli -w @croc-classroom/server -- create-lecturer --username giangvien --full-name "Nguyễn Văn Giảng"
+```
+
+```bash
+npm run cli -w @croc-classroom/server -- reset-lecturer-password
+```
+
+Trong container: `node dist/cli.js <lệnh>` với `DATA_DIR=/data`.
 - [x] Log có cấu trúc (pino); không ghi header Authorization, che các trường `password`, `token`, `crocCode`.
 - [ ] Dockerfile cài sẵn croc 10.7.0 (phối hợp D).
 - [x] Endpoint kiểm tra sức khoẻ cho Docker: `GET /health`.

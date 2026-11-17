@@ -211,8 +211,9 @@ export const endpoints = {
   logout: defineEndpoint({
     method: 'POST',
     path: '/auth/logout',
-    auth: 'any',
-    summary: 'Thu hồi phiên hiện tại. Gọi lại khi đã đăng xuất vẫn trả 204.',
+    // 'none' để gọi lại bằng token đã thu hồi/hết hạn vẫn trả 204; có token hợp lệ thì thu hồi phiên đó.
+    auth: 'none',
+    summary: 'Thu hồi phiên của token trong header Authorization (nếu còn). Luôn trả 204.',
   }),
   me: defineEndpoint({
     method: 'GET',

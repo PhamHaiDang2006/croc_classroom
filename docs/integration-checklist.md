@@ -19,8 +19,11 @@ Mỗi lần chạy ghi commit, môi trường, lệnh hoặc bước thực hi�
 ## M1 — Tài khoản
 
 - [ ] Nhập CSV, kích hoạt, đăng nhập/đăng xuất qua UI → IPC → server thật.
-- [ ] SV không gọi được chức năng GV; tài khoản bị vô hiệu hoá bị thu hồi phiên.
+  — Phía server đạt (C, 2026-11-17, gọi HTTP vào server thật, xem `handoffs/C.md`). Chờ A (UI), B (IPC, API client).
+- [x] SV không gọi được chức năng GV; tài khoản bị vô hiệu hoá bị thu hồi phiên.
+  — C, 2026-11-17, server thật + test tự động. Áp dụng cho REST; đóng WebSocket khi thu hồi chờ D.
 - [ ] Lỗi xác thực/mạng hiển thị đúng; token không lộ ra log hoặc renderer ngoài nhu cầu.
+  — Log server không chứa token/mật khẩu/mã kích hoạt (test + server thật). Hiển thị lỗi và renderer: chờ A, B.
 
 ## M2 — Giao và nhận đề
 

@@ -88,6 +88,23 @@ thay đổi các yêu cầu đã chốt ở đó.
 - README của shared ghi code croc nằm trong shared. Đề xuất chuyển sang `CrocEngine.generateCode()`
   vì định dạng phụ thuộc croc (cách relay chia phòng theo code). B kiểm chứng với croc 10.7.0.
 
+### D-007 — Cách làm phần tài khoản (M1)
+
+- 2026-11-17 · **Đề xuất** · Người đề xuất: C · Review: B, D (chưa)
+- **Argon2id có sẵn trong Node 24** (`crypto.argon2`, có từ 24.7): không thêm thư viện native. Đã đối
+  chiếu với vector kiểm thử RFC 9106 §5.3 (test tự động). Tham số tối thiểu theo OWASP: 19 MiB, 2 lượt,
+  1 luồng (~20 ms mỗi lần băm trên máy phát triển). Lưu dạng PHC nên đổi thư viện sau này vẫn đọc được.
+- **Token phiên và mã kích hoạt băm bằng SHA-256**, không dùng Argon2: đây là bí mật ngẫu nhiên entropy
+  cao (256 bit / 60 bit, mã sống 14 ngày, có giới hạn tần suất), không đoán theo từ điển được; nhập
+  100 SV không phải chạy 100 lần Argon2.
+- **Giới hạn tần suất chỉ theo (tài khoản + IP)**, không giới hạn riêng theo IP: cả lớp thường chung
+  một IP công khai của trường; giới hạn theo IP sẽ khoá cả lớp. Bộ đếm trong bộ nhớ, mất khi khởi động lại.
+- **Tiết lộ tối thiểu**: `ACCOUNT_DISABLED` chỉ báo khi mật khẩu đúng. `ACCOUNT_NOT_ACTIVATED` có tiết lộ
+  MSSV tồn tại nhưng chưa kích hoạt — chấp nhận vì danh sách MSSV vốn không bí mật và SV cần biết để kích hoạt.
+- Kích hoạt lại (sau khi GV cấp lại mã) thu hồi mọi phiên cũ; mật khẩu cũ vẫn dùng được đến khi kích hoạt lại.
+- `POST /auth/logout` đổi sang `auth: 'none'` (xem contracts.md, bảng phiên bản).
+- CLI không nhận mật khẩu qua tham số dòng lệnh (lộ trong lịch sử shell và danh sách tiến trình).
+
 ## Mẫu ghi một quyết định
 
 - Mã / ngày / trạng thái: đề xuất, đã thống nhất hoặc thay thế.

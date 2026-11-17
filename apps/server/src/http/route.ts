@@ -59,7 +59,7 @@ function parseRequest(endpoint: AnyEndpoint, request: FastifyRequest): { params:
   return parsed;
 }
 
-function bearerToken(request: FastifyRequest): string | null {
+export function bearerToken(request: FastifyRequest): string | null {
   const header = request.headers.authorization;
   if (!header) return null;
   const match = /^Bearer\s+(\S+)$/i.exec(header);
