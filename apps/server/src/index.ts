@@ -3,7 +3,9 @@ import { buildApp } from './app.js';
 import { createAssignments } from './assignments/index.js';
 import { ConfigError, loadConfig } from './config.js';
 import { migrate, openDatabase } from './db/index.js';
+import { createTransferOutcomeHandler } from './outcomes.js';
 import { systemClock } from './ports/clock.js';
+import { createSubmissions } from './submissions/index.js';
 import type { TicketIssuer } from './ports/transfers.js';
 import { FakeTicketIssuer } from './testing/fake-ticket-issuer.js';
 import { unavailableTicketIssuer } from './transfers-placeholder.js';
@@ -15,12 +17,15 @@ async function main(): Promise<void> {
   const clock = systemClock;
 
   // Dịch vụ vé + VPS worker của D chưa có: dùng bản báo "chưa sẵn sàng", hoặc bản giả khi phát triển.
-  const fakeTransfers = config.devFakeTransfers ? new FakeTicketIssuer(clock) : undefined;
+  const fakeTransfers = config.devFakeTransfers ? new FakeTicketIssuer(clock, db) : undefined;
   const tickets: TicketIssuer = fakeTransfers ?? unavailableTicketIssuer;
 
   const accounts = createAccounts({ db, clock });
   const assignments = createAssignments({ db, clock, limits: config.limits, tickets });
-  fakeTransfers?.autoPublish(assignments.service);
+  const submissions = createSubmissions({ db, clock, limits: config.limits, tickets });
+  // Giao cho dịch vụ vé / worker của D khi tích hợp.
+  const outcomes = createTransferOutcomeHandler({ assignments: assignments.service, submissions: submissions.service });
+  fakeTransfers?.autoComplete(outcomes);
   const purged = accounts.sessions.purgeExpired();
 
   const app = await buildApp({
@@ -28,12 +33,14 @@ async function main(): Promise<void> {
     db,
     clock,
     sessions: accounts.sessions,
-    modules: [accounts.routes, assignments.routes],
+    modules: [accounts.routes, assignments.routes, submissions.routes],
   });
   if (applied.length > 0) app.log.info({ applied }, 'Đã áp dụng migration');
   if (purged > 0) app.log.info({ purged }, 'Đã xoá phiên hết hạn');
   if (fakeTransfers) {
-    app.log.warn('DEV_FAKE_TRANSFERS=true: dịch vụ vé GIẢ, bài tự phát hành mà không truyền file. Không dùng trên VPS thật.');
+    app.log.warn(
+      'DEV_FAKE_TRANSFERS=true: dịch vụ vé GIẢ — tải đề, nộp bài, thu bài tự "thành công" mà không truyền file. Không dùng trên VPS thật.',
+    );
   }
 
   let closing = false;

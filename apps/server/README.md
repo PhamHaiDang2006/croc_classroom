@@ -30,9 +30,10 @@ Thiết kế: mục 5, 7, 8, 9, 10 và 11 trong [system-design.md](../../docs/sy
 
 Module mới export một `RouteModule` và được thêm vào `buildApp({ modules })` trong `index.ts`.
 
-Đã gắn: `accounts` (M1), `assignments` (M2). Dịch vụ vé của D chưa có: `index.ts` dùng
-`unavailableTicketIssuer` (`src/transfers-placeholder.ts`) — tạo bài trả 503. Đặt `DEV_FAKE_TRANSFERS=true`
-để dùng vé giả, bài tự phát hành (chỉ để thử giao diện; log cảnh báo khi khởi động).
+Đã gắn: `accounts` (M1), `assignments` (M2), `submissions` (M3). `src/outcomes.ts` ghép
+`TransferOutcomeHandler` đầy đủ cho D. Dịch vụ vé của D chưa có: `index.ts` dùng `unavailableTicketIssuer`
+(`src/transfers-placeholder.ts`) — tạo bài / nộp / thu trả 503. Đặt `DEV_FAKE_TRANSFERS=true` để dùng vé giả,
+mọi lượt truyền tự "thành công" (chỉ để thử giao diện; log cảnh báo khi khởi động).
 
 ## Việc cần làm (phần khung chung)
 

@@ -11,6 +11,7 @@ triển khai phần phụ thuộc vào một nhóm hợp đồng khi cột "Revi
 | v1 (đề xuất) | 2026-11-17 | `C/Backend` | Bản đầu cho REST, WS, IPC, engine, vé/worker, dữ liệu, manifest | Chờ review |
 | v1 (sửa trong bản đề xuất) | 2026-11-17 | `C/Backend` | `POST /auth/logout` đổi `auth: 'any'` → `'none'` để gọi lại bằng token đã hết hạn vẫn 204 | Chờ review |
 | v1 (bổ sung nội bộ server, M2) | 2026-11-17 | `C/Backend` | `TransferOutcomeHandler.onFetchVerified`; port `SeedingStats`; cột `assignments.storage_ref` (migration 2) | Chờ D review |
+| v1 (sửa nội bộ server, M3) | 2026-11-17 | `C/Backend` | Khoá "một vé chưa kết thúc" theo từng loại vé; `onSubmissionStored` bỏ `manifestHash` (C tự tính), trả `supersededStorageRefs`, C chuyển vé sang `xong`; D ghi vé vào `tickets` khi mở | Chờ D review |
 
 `CONTRACT_VERSION` trong `packages/shared/src/constants.ts` phải khớp bảng này; `/health` trả về số này.
 
@@ -76,8 +77,11 @@ Kết quả chạy với mock không chứng minh luồng thật. Thông tin đ�
 - `POST /auth/logout`, `DELETE /assignments/:id/fetch`: gọi lại vô hại.
 - `POST /join`: đã tham gia thì trả lại cùng thông tin.
 - `POST /students/import`: MSSV đã tồn tại bị bỏ qua và báo lại (mã kích hoạt chỉ trả một lần).
-- `POST /assignments/:id/fetch`, `/submit`, `/upload-ticket`: mỗi (bên nhận, bài, loại vé) chỉ có
-  một vé chưa kết thúc. Yêu cầu mới huỷ vé cũ (`huy`, lý do `superseded`) rồi cấp vé mới.
+- Mỗi khoá chỉ có một vé chưa kết thúc; yêu cầu mới huỷ vé cũ cùng khoá (`huy`, lý do `superseded`)
+  rồi cấp vé mới. Khoá: `/upload-ticket` (gv_tai_len) → bài; `/submit` (nop_bai) → (SV, bài);
+  `/fetch` (phat_de) → (SV, bài); `/collect` (gv_thu_bai) → phiên bản bài nộp — nên GV thu bài của
+  nhiều SV cùng lúc không huỷ lẫn nhau. (Sửa ở M3: bản trước ghi "(bên nhận, bài, loại vé)", sai với
+  `nop_bai` và `gv_thu_bai`.)
 - `POST /tickets/:id/result`: báo lặp cùng kết quả trả trạng thái hiện tại. Báo khác kết quả
   sau khi vé đã kết thúc trả `TICKET_STATE_INVALID`.
 - `POST /assignments` không chống tạo trùng; GV xoá bài thừa.
@@ -101,9 +105,13 @@ Kết quả chạy với mock không chứng minh luồng thật. Thông tin đ�
 **Phiên bản bài nộp** (C)
 - Mỗi lần nộp thành công là một dòng `submissions` với `version` = lớn nhất + 1, gán trong
   transaction khi worker báo đã lưu. Bản mới chỉ thay bản cũ sau khi đã xác minh.
-- Vé `nop_bai` bị thay bằng vé mới trong lúc worker đang xác minh thì kết quả bị từ chối
+- Trong cùng transaction đó C kiểm tra vé `nop_bai` khớp (bài, SV) và còn `dang_chay`, tự tính mã băm
+  tổng từ manifest, rồi chuyển vé sang `xong` và ghi `tickets.submission_id`. Gọi lặp cho vé đã commit
+  trả lại cùng biên nhận (an toàn khi D thử lại).
+- Vé `nop_bai` bị thay bằng vé mới (hoặc hết hạn) trong lúc worker đang xác minh thì kết quả bị từ chối
   (`ticket_not_active`) và worker xoá bản vừa lưu. Vì mỗi SV chỉ có một vé nộp đang chạy cho một
   bài, các phiên bản không thể commit lẫn thứ tự.
+- Commit thành công trả `supersededStorageRefs`: D xoá file của bản cũ khi không còn vé `gv_thu_bai` dùng chúng.
 - Chỉ phiên bản mới nhất còn file (`storage_ref`). GV thu theo `submissionId` của một phiên bản cụ
   thể; phiên bản đã bị thay trả `SUBMISSION_SUPERSEDED`. `collected_at` gắn với đúng phiên bản đó.
 - Đổi hạn nộp không tính lại cờ trễ của các bản đã nộp.
@@ -132,7 +140,7 @@ Kết quả chạy với mock không chứng minh luồng thật. Thông tin đ�
 |---|---|---|---|
 | Xin lại vé tải đề, trạng thái phát hành, biên nhận sau mất kết nối | `POST /assignments/:id/upload-ticket`, WS `assignment.published`, `GET /tickets/:id`, `GET /assignments/:id/receipt` | Review | C, D |
 | Báo bài phát hành / bị xoá, huỷ vé, dọn cache | WS `assignment.published`, `assignment.deleted`; `TicketIssuer.purgeAssignment` | Review | D, B |
-| Thu đúng phiên bản, nộp đồng thời, kết quả đến lệch thứ tự | Xem "Phiên bản bài nộp" | D xác nhận worker giữ file phiên bản đang thu đến khi vé kết thúc | C, D |
+| Thu đúng phiên bản, nộp đồng thời, kết quả đến lệch thứ tự | Xem "Phiên bản bài nộp"; C đã triển khai và test (M3) với vé giả | D xác nhận worker giữ file phiên bản đang thu đến khi vé kết thúc, và xoá `supersededStorageRefs` sau đó | C, D |
 | Nguồn xác nhận thành công từng loại vé | Bảng trong mục "Vé" | Review | D, C |
 | Giải phóng slot đúng một lần, kết quả lặp, phục hồi sau restart | Trạng thái kết thúc là cuối cùng; restart → `huy` | Cách D cài đặt bể tiến trình | D |
 | **Báo cáo sai hash** | Chưa đề xuất; `holdings.banned` có sẵn nhưng chưa dùng | Chính sách thay cho "cấm vĩnh viễn" của system-design 7.4 | D, cả nhóm |

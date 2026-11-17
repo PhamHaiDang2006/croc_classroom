@@ -3,7 +3,7 @@
 ## Trạng thái và nguồn tham chiếu
 
 Repository: có workspace, hợp đồng v1 trong `packages/shared` (chờ review), server có module tài khoản
-(M1) và bài tập (M2). Chưa có truyền file, nộp bài, app desktop hay engine croc thật.
+(M1), bài tập (M2), bài nộp (M3). Chưa có truyền file thật, app desktop hay engine croc thật.
 Các prompt là hướng dẫn công việc tương lai, không phải bằng chứng đã triển khai.
 
 Trước khi làm, đọc:

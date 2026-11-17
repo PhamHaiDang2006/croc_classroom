@@ -39,10 +39,18 @@ Mỗi lần chạy ghi commit, môi trường, lệnh hoặc bước thực hi�
 ## M3 — Nộp và thu
 
 - [ ] Nộp đúng/trễ hạn, vượt dung lượng và nộp lại; biên nhận dựa trên xác minh VPS.
+  — Phía C đạt: biên nhận chỉ tạo khi worker gọi `onSubmissionStored` (test + server thật, vé **giả**).
+  Truyền file thật: chờ B, D.
 - [ ] Bản mới lỗi không làm mất bản cũ; nộp đồng thời tuân thủ quy tắc version đã chốt.
-- [ ] SV không xem/tải bài của người khác.
+  — Phía C đạt (test: vé bị thay / hết hạn không commit được, gọi lặp an toàn). Quy tắc version chờ D review (D-009).
+- [x] SV không xem/tải bài của người khác.
+  — C, 2026-11-17: biên nhận, danh sách bài nộp, vé thu bài đều bị chặn với SV khác (test + server thật).
+  Tải file chỉ có qua vé `gv_thu_bai`, SV không xin được.
 - [ ] GV mở lại app thu đúng bản mới nhất; xác nhận đã tải gắn với đúng version.
+  — Phía C đạt: thu theo ID phiên bản, bản cũ → `SUBMISSION_SUPERSEDED`, `collected_at` gắn đúng phiên bản.
+  App tự thu khi mở: chờ B.
 - [ ] Mất kết nối sau nộp vẫn truy vấn lại được biên nhận.
+  — `GET /assignments/:id/receipt` (C, đạt). `GET /tickets/:id` và WS `ticket.updated`: chờ D; app: chờ B.
 
 ## M4 — Chia sẻ lại và phục hồi
 

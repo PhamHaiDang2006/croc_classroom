@@ -120,6 +120,23 @@ thay đổi các yêu cầu đã chốt ở đó.
   `DEV_FAKE_TRANSFERS=true` dùng vé giả, bài tự phát hành sau ~1 giây, log cảnh báo khi khởi động —
   chỉ để A/B thử giao diện với server thật, không bao giờ bật trên VPS.
 
+### D-009 — Nộp bài, phiên bản và thu bài (M3, phía C)
+
+- 2026-11-17 · **Đề xuất** · Người đề xuất: C · Review: D (chưa)
+- **Commit phiên bản nguyên tử**: `onSubmissionStored` chạy trong một transaction SQLite đồng bộ: kiểm vé
+  `nop_bai` còn `dang_chay` và khớp (bài, SV) → ghi phiên bản mới → bỏ `storage_ref` của bản cũ → chuyển vé
+  sang `xong` và ghi `tickets.submission_id`. C ghi vào bảng `tickets` (của D) ở bước cuối để việc kiểm
+  vé và commit không thể bị chen giữa; D không cần tự chuyển vé nộp bài sang `xong`.
+- **An toàn khi D thử lại**: gọi lặp cho vé đã commit trả lại cùng biên nhận thay vì từ chối — nếu từ chối,
+  worker sẽ xoá file của một phiên bản đã được ghi nhận.
+- **Mã băm tổng do C tự tính** từ manifest (bỏ `manifestHash` khỏi sự kiện), một nguồn duy nhất.
+- **Sửa quy tắc "một vé chưa kết thúc"**: khoá theo loại vé (bài / (SV, bài) / phiên bản bài nộp). Quy tắc
+  cũ "(bên nhận, bài, loại vé)" sẽ khiến GV thu bài của SV này huỷ vé thu bài của SV khác, và vé nộp của
+  SV này huỷ vé nộp của SV khác (bên nhận đều là VPS).
+- **Không tiết lộ biên nhận**: SV chưa tham gia / chưa nộp → `NOT_FOUND`; nộp vào bài chưa tham gia →
+  `NOT_PARTICIPANT` (theo hợp đồng; ID bài là UUID không đoán được).
+- `DEV_FAKE_TRANSFERS=true` giờ tự hoàn tất cả tải đề, nộp bài và thu bài (không truyền file).
+
 ## Mẫu ghi một quyết định
 
 - Mã / ngày / trạng thái: đề xuất, đã thống nhất hoặc thay thế.

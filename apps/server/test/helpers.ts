@@ -1,6 +1,9 @@
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { createAccounts, type Accounts } from '../src/accounts/index.js';
 import { createAssignments, type Assignments } from '../src/assignments/index.js';
+import { createTransferOutcomeHandler } from '../src/outcomes.js';
+import type { TransferOutcomeHandler } from '../src/ports/transfers.js';
+import { createSubmissions, type Submissions } from '../src/submissions/index.js';
 import { FakeTicketIssuer } from '../src/testing/fake-ticket-issuer.js';
 import type { Argon2Params } from '../src/accounts/password.js';
 import { buildApp, type AppDeps } from '../src/app.js';
@@ -61,6 +64,9 @@ export interface AccountsHarness {
   issuer: FakeTicketIssuer;
   /** Số seeder online theo bài — thay cho thống kê của D. */
   seeding: Map<string, number>;
+  submissions: Submissions;
+  /** Handler đầy đủ (C) mà worker của D sẽ gọi. */
+  outcomes: TransferOutcomeHandler;
   /** Gọi API như client thật (JSON, header Bearer). */
   call(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, options?: { token?: string; body?: unknown }): Promise<LightMyRequestResponse>;
   loginLecturer(): Promise<string>;
@@ -80,7 +86,7 @@ export async function accountsHarness(
   const config = testConfig({ ...(options.logLevel ? { LOG_LEVEL: options.logLevel } : {}), ...options.env });
   const accounts = createAccounts({ db, clock, passwordParams: FAST_ARGON2 });
   await accounts.service.createLecturer(LECTURER);
-  const issuer = new FakeTicketIssuer(clock);
+  const issuer = new FakeTicketIssuer(clock, db);
   const seeding = new Map<string, number>();
   const assignments = createAssignments({
     db,
@@ -89,12 +95,14 @@ export async function accountsHarness(
     tickets: issuer,
     seeding: { seedingCount: (id) => seeding.get(id) ?? 0 },
   });
+  const submissions = createSubmissions({ db, clock, limits: config.limits, tickets: issuer });
+  const outcomes = createTransferOutcomeHandler({ assignments: assignments.service, submissions: submissions.service });
   const app = await buildApp({
     config,
     db,
     clock,
     sessions: accounts.sessions,
-    modules: [accounts.routes, assignments.routes],
+    modules: [accounts.routes, assignments.routes, submissions.routes],
     ...(options.logStream ? { logStream: options.logStream } : {}),
   });
   const call: AccountsHarness['call'] = (method, url, { token, body } = {}) =>
@@ -111,7 +119,7 @@ export async function accountsHarness(
     if (res.statusCode !== 200) throw new Error(`Đăng nhập GV lỗi: ${res.body}`);
     return res.json().token as string;
   };
-  return { app, db, clock, accounts, assignments, issuer, seeding, call, loginLecturer };
+  return { app, db, clock, accounts, assignments, issuer, seeding, submissions, outcomes, call, loginLecturer };
 }
 
 /** Tên ngắn hơn cho test các mốc sau. */

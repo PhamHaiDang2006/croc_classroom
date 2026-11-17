@@ -1,9 +1,26 @@
 # Bàn giao vai trò C
 
-- Mốc: M0 — Nền chung; M1 — Tài khoản; M2 — Bài tập và `/join` (đều là phía server của C)
+- Mốc: M0 — Nền chung; M1 — Tài khoản; M2 — Bài tập và `/join`; M3 — Nộp và thu bài (đều là phía server của C)
 - Branch / commit hoặc PR: `C/Backend` (tách từ `new` @ `c4ca79c`). M0: `3bdab8d`, M1: `9a61459`, đã push.
-  M2: commit "M2: bài tập…" ngay sau đó, đã push. Chưa có PR.
-- Phiên bản hợp đồng đang sử dụng: v1 (đề xuất, chưa ai review; sửa `POST /auth/logout`; bổ sung nội bộ server ở M2)
+  M2: `f69d512`. M3: commit "M3: nộp và thu bài…" ngay sau đó. Tất cả đã push. Chưa có PR.
+- Phiên bản hợp đồng đang sử dụng: v1 (đề xuất, chưa ai review; sửa `POST /auth/logout`; bổ sung/sửa interface nội bộ server ở M2, M3)
+
+## Đã làm — M3 (nộp và thu bài, phía C)
+
+- `apps/server/src/submissions/`:
+  - SV xin vé `nop_bai`: kiểm tra đã vào bài, số file, ≤ 200 MB.
+  - `onSubmissionStored` trong một transaction: kiểm vé `nop_bai` còn chạy và khớp → phiên bản = lớn nhất + 1,
+    giờ nộp = giờ xác minh, cờ trễ, mã băm tổng do server tính → bản cũ không còn file → vé `xong`.
+    Vé bị thay / hết hạn thì từ chối; gọi lặp cho vé đã commit trả lại cùng biên nhận.
+  - `GET /assignments/:id/receipt`: biên nhận mới nhất của chính SV (sau khi mất kết nối).
+  - GV: danh sách một dòng / SV đã vào bài (chưa nộp / đã nộp / trễ, số lần nộp, đã tải chưa);
+    thu theo ID phiên bản, bản cũ → `SUBMISSION_SUPERSEDED`; `onCollectConfirmed` ghi `collected_at` đúng phiên bản.
+- `src/outcomes.ts`: ghép `TransferOutcomeHandler` đầy đủ (assignments + submissions) để giao cho D.
+- Interface nội bộ (sửa): khoá "một vé chưa kết thúc" theo từng loại vé (quy tắc cũ làm GV thu bài của
+  SV này huỷ vé của SV khác); `onSubmissionStored` bỏ `manifestHash`, trả `supersededStorageRefs`.
+- `FakeTicketIssuer` ghi vé vào bảng `tickets` và huỷ vé cũ cùng khoá như D phải làm; `DEV_FAKE_TRANSFERS`
+  tự hoàn tất cả tải đề, nộp bài, thu bài.
+- Quyết định D-009; contracts.md: quy tắc vé theo loại, commit phiên bản, checklist M3.
 
 ## Đã làm — M2 (bài tập, phía C)
 
@@ -63,12 +80,13 @@
   - REST tài khoản đã chạy thật: `/auth/login`, `/auth/activate`, `/auth/logout`, `/me`, `/config`,
     `/students*` → B (API client), A (qua IPC).
   - REST bài tập đã chạy thật: `/assignments*`, `/join`, `/my/assignments*` → B, A.
+  - REST bài nộp đã chạy thật: `/assignments/:id/submit`, `/assignments/:id/receipt`,
+    `/assignments/:id/submissions`, `/submissions/:id/collect` → B, A.
   - REST + DTO + mã lỗi còn lại (chưa triển khai) → B, D.
   - `SessionService` (`SessionResolver`) → D dùng để xác thực WebSocket.
   - `SessionService.onUserSessionsRevoked()` → D đóng WS (mã `WS_CLOSE.revoked`) khi phiên bị thu hồi.
   - `registerEndpoint`, `AppError`, `RouteModule`, `FailureLimiter` → D.
-  - `TransferOutcomeHandler`: `onUploadStored`, `onFetchVerified` đã có trong `AssignmentsService` (M2);
-    `onSubmissionStored`, `onCollectConfirmed` ở M3 → D gọi khi worker xong.
+  - `TransferOutcomeHandler` đầy đủ (`createTransferOutcomeHandler` trong `src/outcomes.ts`) → D gọi khi worker xong.
   - Fixture, mock IPC → A, B.
 - Interface đang sử dụng (bên cung cấp):
   - `TicketIssuer` — D (server chạy: `unavailableTicketIssuer`; test: `FakeTicketIssuer`).
@@ -81,7 +99,9 @@
 
 | Lệnh hoặc kịch bản | Môi trường | Kết quả | Mock hay thật |
 |---|---|---|---|
-| `npm run check` (lint + typecheck + test + build) | Linux x64, Node 24.21.0, npm 11.19.0 | Đạt; 14 file test, 239 test | Thật |
+| `npm run check` (lint + typecheck + test + build) | Linux x64, Node 24.21.0, npm 11.19.0 | Đạt; 15 file test, 258 test | Thật |
+| Test HTTP bài nộp (`submissions.test.ts`): xin vé, chưa vào bài, vượt dung lượng / số file, VPS đầy, đúng hạn / trễ / không hạn, vé bị thay không commit, bản mới lỗi giữ bản cũ, gọi lặp, vé không khớp, biên nhận sau mất kết nối, quyền xem, danh sách GV, thu đúng phiên bản, thu song song nhiều SV, xác nhận đã tải, xoá bài | SQLite trong bộ nhớ, đồng hồ giả, **vé giả ghi bảng tickets** | Đạt | Server thật, vé **giả** |
+| Server đã build, `DEV_FAKE_TRANSFERS=true`, CSDL mới, GV tạo bằng CLI: tạo bài → SV vào bài → xin vé nộp → chưa có biên nhận → có biên nhận v1 → nộp lại v2 → GV xem danh sách → thu v2 → đã tải gắn v2 → thu v1 bị từ chối → SV không xem được danh sách → thống kê | `node dist/index.js` + `fetch` | 13/13 đạt; log không có lỗi | Server thật, vé **giả** |
 | Test HTTP bài tập (`assignments.test.ts`): tạo bài, code phrase không trùng, giới hạn manifest, VPS đầy, xin lại vé, phát hành lặp, `/join` trước/sau phát hành, giới hạn nhập sai, đủ SV, quyền xem, thống kê, sửa, xoá, D dọn lỗi | SQLite trong bộ nhớ, đồng hồ giả, **vé giả** | Đạt | Server thật, vé **giả** |
 | Server đã build, chế độ mặc định: tạo bài → 503 "chưa có dịch vụ truyền file", không để lại bài | `node dist/index.js` + `fetch`, CSDL file từ lần thử M1 | Đạt; migration 2 tự áp dụng trên CSDL cũ (user_version 1 → 2) | Thật |
 | Server đã build, `DEV_FAKE_TRANSFERS=true`: tạo bài → code chưa dùng được → tự phát hành → SV vào bài, nhận manifest → danh sách SV → thống kê → sửa hạn → xoá | như trên | 10/10 bước đạt; log có cảnh báo chế độ giả | Server thật, vé **giả** |
@@ -111,7 +131,8 @@
 - CI chưa chạy trên GitHub: chạy khi mở PR.
 - Mục checklist M0 "croc qua relay cục bộ, cổng relay từ mạng trường": B, D.
 - M2 tích hợp thật (gửi đề, nhận đề, xoá file trên VPS): chờ `TicketIssuer`, worker, `SeedingStats` của D và app của B.
-- M3 của C (chưa bắt đầu): submissions (nộp bài, version, biên nhận, thu bài, `onSubmissionStored`, `onCollectConfirmed`).
+- M3 tích hợp thật (nộp, thu bằng croc; WS `ticket.updated`, `submission.new`; app tự thu khi mở): chờ D, B.
+- M4 phía C: dữ liệu và quyền cho chia sẻ lại (`holdings`, `participants`) — phối hợp D, chưa bắt đầu.
 
 ## Yêu cầu bên khác
 
@@ -126,6 +147,9 @@
   - Xác thực WebSocket bằng `SessionService.resolve()`; đóng kết nối khi `onUserSessionsRevoked`.
   - Triển khai `TicketIssuer` thật và `SeedingStats`, gọi `onUploadStored` / `onFetchVerified`; review D-008
     (ai ghi bảng nào, thứ tự xoá bài) và cột `storage_ref`.
+  - Review D-009: ghi vé vào `tickets` khi mở, khoá "một vé chưa kết thúc" theo loại vé, C chuyển vé nộp
+    sang `xong` trong transaction commit, xoá file `supersededStorageRefs` khi không còn vé thu bài dùng,
+    gửi WS `ticket.updated` (kèm biên nhận) và `submission.new` sau `onSubmissionStored`.
   - Xác nhận worker giữ file phiên bản đang được thu (D-005).
   - Đề xuất chính sách báo cáo sai hash, đổi mật khẩu relay, huỷ lượt truyền bị treo.
   - Thử relay và cổng từ mạng trường.
