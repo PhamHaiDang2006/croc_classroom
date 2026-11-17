@@ -117,6 +117,32 @@ describe('verifyDirectory', () => {
   });
 });
 
+describe('verifyDirectory chặn file giả trùng tên sau chuẩn hoá (lỗi critical của review)', () => {
+  it('file NFD trùng tên với file đúng dạng NFC → không đạt', async () => {
+    await write('Đề.txt'.normalize('NFC'), 'dung');
+    const manifest = await computeManifest(root);
+    await write('Đề.txt'.normalize('NFD'), 'NOI DUNG GIA MAO');
+
+    const result = await verifyDirectory(root, manifest);
+
+    // Thứ tự readdir quyết định file nào được so nội dung (có thể kèm size_mismatch); điều bắt buộc
+    // là không đạt và có báo trùng.
+    expect(result.ok).toBe(false);
+    expect(result.ok ? [] : result.problems).toContainEqual({ kind: 'duplicate', path: 'Đề.txt'.normalize('NFC') });
+  });
+
+  it('thư mục trùng tên sau chuẩn hoá chứa file cùng tên → không đạt', async () => {
+    await write(`${'Thư mục'.normalize('NFC')}/bai.txt`, 'dung');
+    const manifest = await computeManifest(root);
+    await write(`${'Thư mục'.normalize('NFD')}/bai.txt`, 'gia');
+
+    const result = await verifyDirectory(root, manifest);
+
+    expect(result.ok).toBe(false);
+    expect(result.ok ? [] : result.problems.map((p) => p.kind)).toContain('duplicate');
+  });
+});
+
 describe('manifestHash', () => {
   const files = [
     { path: 'b.txt', size: 1, sha256: '1'.repeat(64) },

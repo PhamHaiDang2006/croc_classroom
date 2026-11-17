@@ -4,6 +4,7 @@ import { createAssignments, type Assignments } from '../src/assignments/index.js
 import { createTransferOutcomeHandler } from '../src/outcomes.js';
 import type { TransferOutcomeHandler } from '../src/ports/transfers.js';
 import { createSubmissions, type Submissions } from '../src/submissions/index.js';
+import type { RateLimitRule } from '../src/http/rate-limit.js';
 import { FakeTicketIssuer } from '../src/testing/fake-ticket-issuer.js';
 import type { Argon2Params } from '../src/accounts/password.js';
 import { buildApp, type AppDeps } from '../src/app.js';
@@ -79,12 +80,12 @@ export const LECTURER = { username: 'giangvien', fullName: 'Nguyễn Văn Giản
  * một tài khoản GV. `env` ghi đè cấu hình (ví dụ LIMIT_*).
  */
 export async function accountsHarness(
-  options: { logStream?: NodeJS.WritableStream; logLevel?: string; env?: Record<string, string> } = {},
+  options: { logStream?: NodeJS.WritableStream; logLevel?: string; env?: Record<string, string>; ipFailureRule?: RateLimitRule } = {},
 ): Promise<AccountsHarness> {
   const db = testDb();
   const clock = new FakeClock();
   const config = testConfig({ ...(options.logLevel ? { LOG_LEVEL: options.logLevel } : {}), ...options.env });
-  const accounts = createAccounts({ db, clock, passwordParams: FAST_ARGON2 });
+  const accounts = createAccounts({ db, clock, passwordParams: FAST_ARGON2, ...(options.ipFailureRule ? { ipFailureRule: options.ipFailureRule } : {}) });
   await accounts.service.createLecturer(LECTURER);
   const issuer = new FakeTicketIssuer(clock, db);
   const seeding = new Map<string, number>();

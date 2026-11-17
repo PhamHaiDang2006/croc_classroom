@@ -157,6 +157,34 @@ describe('SV nhập code phrase', () => {
     expect((await h.call('GET', `/assignments/${assignment.id}`, { token: gv })).json().stats.participants).toBe(1);
   });
 
+  it('xen code bài đã tham gia giữa các lần đoán không xoá bộ đếm (review M0–M3, lỗi high)', async () => {
+    const { gv, sv } = await setup();
+    const { assignment } = (await createAssignment(gv)).json();
+    await publish(assignment.id);
+    const token = sv['20210001']!.token;
+    const join = (codePhrase: string) => h.call('POST', '/join', { token, body: { codePhrase } });
+    expect((await join(assignment.codePhrase)).statusCode).toBe(200);
+
+    for (let i = 0; i < 5; i++) await join(`sao-mai-xanh-00${i}`);
+    expect((await join(assignment.codePhrase)).statusCode).toBe(200); // vào lại: không xoá bộ đếm
+    for (let i = 5; i < 10; i++) await join(`sao-mai-xanh-00${i}`);
+    expect(errorCode(await join('sao-mai-xanh-010'))).toBe('RATE_LIMITED');
+  });
+
+  it('vào bài MỚI thì xoá bộ đếm sai', async () => {
+    const { gv, sv } = await setup();
+    const a1 = (await createAssignment(gv)).json().assignment;
+    const a2 = (await createAssignment(gv)).json().assignment;
+    await publish(a1.id);
+    await publish(a2.id);
+    const token = sv['20210001']!.token;
+    const join = (codePhrase: string) => h.call('POST', '/join', { token, body: { codePhrase } });
+    for (let i = 0; i < 9; i++) await join(`sao-mai-xanh-00${i}`);
+    expect((await join(a1.codePhrase)).statusCode).toBe(200);
+    for (let i = 0; i < 9; i++) expect(errorCode(await join(`tre-xanh-vui-00${i}`))).toBe('CODE_PHRASE_INVALID');
+    expect((await join(a2.codePhrase)).statusCode).toBe(200);
+  });
+
   it('nhập sai 10 lần trong 5 phút thì bị chặn', async () => {
     const { gv, sv } = await setup();
     const { assignment } = (await createAssignment(gv)).json();

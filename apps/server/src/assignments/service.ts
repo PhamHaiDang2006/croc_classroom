@@ -19,7 +19,7 @@ import { generateCodePhrase } from '@croc-classroom/shared/node';
 import type { z } from 'zod';
 import type { Db } from '../db/index.js';
 import { appError } from '../http/errors.js';
-import type { FailureLimiter } from '../http/rate-limit.js';
+import { ipBucket, type FailureLimiter } from '../http/rate-limit.js';
 import type { Clock } from '../ports/clock.js';
 import type { SeedingStats } from '../ports/seeding.js';
 import type { TicketIssuer, TransferOutcomeHandler } from '../ports/transfers.js';
@@ -152,7 +152,7 @@ export class AssignmentsService implements AssignmentOutcomes {
   // ------------------------------------------------------------ sinh viên
 
   join(studentId: string, codePhrase: string, ip: string): StudentAssignmentDetail {
-    const key = `join:${studentId}|${ip}`;
+    const key = `join:${studentId}|${ipBucket(ip)}`;
     this.deps.joinLimiter.assertAllowed(key);
 
     const row = this.db
@@ -162,16 +162,19 @@ export class AssignmentsService implements AssignmentOutcomes {
       this.deps.joinLimiter.recordFailure(key);
       throw appError('CODE_PHRASE_INVALID');
     }
-    this.deps.joinLimiter.reset(key);
 
-    this.db.transaction(() => {
-      if (this.participant(row.id, studentId)) return;
+    const joinedNow = this.db.transaction((): boolean => {
+      if (this.participant(row.id, studentId)) return false;
       const { n } = this.db.prepare('SELECT COUNT(*) AS n FROM participants WHERE assignment_id = ?').get(row.id) as { n: number };
       if (n >= this.deps.limits.maxStudentsPerAssignment) throw appError('ASSIGNMENT_FULL');
       this.db
         .prepare('INSERT INTO participants (assignment_id, student_id, joined_at) VALUES (?, ?, ?)')
         .run(row.id, studentId, this.deps.clock.now().toISOString());
+      return true;
     })();
+    // Chỉ xoá bộ đếm khi vào bài MỚI. Nếu vào lại bài đã tham gia cũng xoá, SV có thể xen code bài của
+    // mình giữa các lần đoán để dò code bài khác không giới hạn (review M0–M3, lỗi high).
+    if (joinedNow) this.deps.joinLimiter.reset(key);
     return this.studentDetail(row, studentId);
   }
 

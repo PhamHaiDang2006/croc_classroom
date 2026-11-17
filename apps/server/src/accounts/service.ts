@@ -14,7 +14,7 @@ import {
 import type { z } from 'zod';
 import type { Db } from '../db/index.js';
 import { appError } from '../http/errors.js';
-import type { FailureLimiter } from '../http/rate-limit.js';
+import { ipBucket, type FailureLimiter } from '../http/rate-limit.js';
 import type { Clock } from '../ports/clock.js';
 import type { AuthContext } from '../ports/sessions.js';
 import { parseStudentCsv } from './csv.js';
@@ -43,7 +43,10 @@ export interface AccountsServiceDeps {
   db: Db;
   clock: Clock;
   sessions: SessionService;
+  /** Đếm sai theo (tài khoản + nhóm IP). */
   limiter: FailureLimiter;
+  /** Trần theo nhóm IP, cộng mọi tài khoản (đăng nhập + kích hoạt). */
+  ipLimiter: FailureLimiter;
   /** Chỉ test mới hạ tham số để chạy nhanh. */
   passwordParams?: Argon2Params;
 }
@@ -59,6 +62,7 @@ export class AccountsService {
   private readonly clock: Clock;
   private readonly sessions: SessionService;
   private readonly limiter: FailureLimiter;
+  private readonly ipLimiter: FailureLimiter;
   private readonly passwordParams: Argon2Params;
   private readonly dummyHash: () => Promise<string>;
 
@@ -67,6 +71,7 @@ export class AccountsService {
     this.clock = deps.clock;
     this.sessions = deps.sessions;
     this.limiter = deps.limiter;
+    this.ipLimiter = deps.ipLimiter;
     this.passwordParams = deps.passwordParams ?? DEFAULT_ARGON2_PARAMS;
     this.dummyHash = createDummyHash(this.passwordParams);
   }
@@ -75,8 +80,11 @@ export class AccountsService {
 
   async login(request: z.output<typeof LoginRequestSchema>, ip: string): Promise<Session> {
     const identifier = request.role === 'student' ? normalizeMssv(request.mssv) : request.username;
-    const key = `login:${request.role}:${identifier}|${ip}`;
+    const bucket = ipBucket(ip);
+    const key = `login:${request.role}:${identifier}|${bucket}`;
+    const ipKey = `ip:${bucket}`;
     this.limiter.assertAllowed(key);
+    this.ipLimiter.assertAllowed(ipKey);
 
     const row =
       request.role === 'student'
@@ -85,12 +93,12 @@ export class AccountsService {
 
     if (!row) {
       await verifyPassword(await this.dummyHash(), request.password);
-      this.limiter.recordFailure(key);
+      this.recordFailure(key, ipKey);
       throw appError('INVALID_CREDENTIALS');
     }
     if (!row.password_hash) throw appError('ACCOUNT_NOT_ACTIVATED');
     if (!(await verifyPassword(row.password_hash, request.password))) {
-      this.limiter.recordFailure(key);
+      this.recordFailure(key, ipKey);
       throw appError('INVALID_CREDENTIALS');
     }
     // Chỉ báo bị vô hiệu hoá khi mật khẩu đúng, để không lộ trạng thái tài khoản cho người đoán mò.
@@ -103,8 +111,11 @@ export class AccountsService {
 
   async activate(request: z.output<typeof ActivateRequestSchema>, ip: string): Promise<Session> {
     const mssv = normalizeMssv(request.mssv);
-    const key = `activate:${mssv}|${ip}`;
+    const bucket = ipBucket(ip);
+    const key = `activate:${mssv}|${bucket}`;
+    const ipKey = `ip:${bucket}`;
     this.limiter.assertAllowed(key);
+    this.ipLimiter.assertAllowed(ipKey);
 
     const row = this.findUser('mssv = ? AND role = ?', mssv, 'student');
     const codeHash = hashActivationCode(request.activationCode);
@@ -115,7 +126,7 @@ export class AccountsService {
       Date.parse(row.activation_expires_at) > now.getTime() &&
       sameHash(row.activation_code_hash, codeHash);
     if (!row || !valid) {
-      this.limiter.recordFailure(key);
+      this.recordFailure(key, ipKey);
       throw appError('ACTIVATION_INVALID');
     }
     if (row.disabled) throw appError('ACCOUNT_DISABLED');
@@ -256,6 +267,11 @@ export class AccountsService {
   }
 
   // ------------------------------------------------------------ tiện ích
+
+  private recordFailure(accountKey: string, ipKey: string): void {
+    this.limiter.recordFailure(accountKey);
+    this.ipLimiter.recordFailure(ipKey);
+  }
 
   private findUser(where: string, ...params: unknown[]): UserRow | undefined {
     return this.db.prepare(`SELECT * FROM users WHERE ${where}`).get(...params) as UserRow | undefined;

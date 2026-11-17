@@ -2,8 +2,24 @@
 
 - Mốc: M0 — Nền chung; M1 — Tài khoản; M2 — Bài tập và `/join`; M3 — Nộp và thu bài (đều là phía server của C)
 - Branch / commit hoặc PR: `C/Backend` (tách từ `new` @ `c4ca79c`). M0: `3bdab8d`, M1: `9a61459`, đã push.
-  M2: `f69d512`. M3: commit "M3: nộp và thu bài…" ngay sau đó. Tất cả đã push. Chưa có PR.
+  M2: `f69d512`. M3: `038679c`. Sửa lỗi review: commit "Sửa lỗi critical–medium…" ngay sau đó. Tất cả đã push. Chưa có PR.
 - Phiên bản hợp đồng đang sử dụng: v1 (đề xuất, chưa ai review; sửa `POST /auth/logout`; bổ sung/sửa interface nội bộ server ở M2, M3)
+
+## Sửa sau review code M0–M3 (2026-11-17)
+
+Review theo quy trình skill code-reviewer; các lỗi critical–medium đã sửa, kèm test hồi quy, và chạy lại
+script tái hiện trên bản build để xác nhận:
+
+| Mức | Lỗi | Sửa | Kiểm chứng |
+|---|---|---|---|
+| Critical | `verifyDirectory` bỏ sót file giả trùng tên sau chuẩn hoá NFC/NFD | Báo `duplicate` (thêm vào `VerifyProblem`) | Trước: `ok:true`; sau: `ok:false` + `duplicate` |
+| High | `/join` xoá bộ đếm sai cả khi vào lại bài cũ → dò code không giới hạn | Chỉ xoá khi vào bài mới | Trước: 180 lần đoán, 0 bị chặn; sau: 10 qua, 170 bị chặn |
+| Medium | POST không body + `Content-Type: application/json` → 400 | Parser JSON coi body rỗng là không có body, giữ chặn `__proto__` | Trước: logout 400; sau: 204 |
+| Medium | Không có giới hạn theo IP: dò hàng loạt, đổi IPv6, nghẽn CPU bằng Argon2 | Nhóm IPv6 theo /64; trần 1000 lần sai / 5 phút / nhóm IP; tối đa 2 lượt Argon2 cùng lúc | Test tự động (chưa thử tải thật) |
+
+Còn mở (low, chưa sửa): `GET /my/assignments` parse cả manifest rồi bỏ (~19 ms / 10.000 file);
+SQLite `synchronous = NORMAL` có thể mất biên nhận khi mất điện; khoảng hở khi xoá bài trong lúc D dọn VPS;
+`TRUST_PROXY` trống khi chạy sau Caddy (D cần đặt khi triển khai).
 
 ## Đã làm — M3 (nộp và thu bài, phía C)
 
@@ -99,7 +115,7 @@
 
 | Lệnh hoặc kịch bản | Môi trường | Kết quả | Mock hay thật |
 |---|---|---|---|
-| `npm run check` (lint + typecheck + test + build) | Linux x64, Node 24.21.0, npm 11.19.0 | Đạt; 15 file test, 258 test | Thật |
+| `npm run check` (lint + typecheck + test + build) | Linux x64, Node 24.21.0, npm 11.19.0 | Đạt; 15 file test, 277 test (sau khi sửa lỗi review) | Thật |
 | Test HTTP bài nộp (`submissions.test.ts`): xin vé, chưa vào bài, vượt dung lượng / số file, VPS đầy, đúng hạn / trễ / không hạn, vé bị thay không commit, bản mới lỗi giữ bản cũ, gọi lặp, vé không khớp, biên nhận sau mất kết nối, quyền xem, danh sách GV, thu đúng phiên bản, thu song song nhiều SV, xác nhận đã tải, xoá bài | SQLite trong bộ nhớ, đồng hồ giả, **vé giả ghi bảng tickets** | Đạt | Server thật, vé **giả** |
 | Server đã build, `DEV_FAKE_TRANSFERS=true`, CSDL mới, GV tạo bằng CLI: tạo bài → SV vào bài → xin vé nộp → chưa có biên nhận → có biên nhận v1 → nộp lại v2 → GV xem danh sách → thu v2 → đã tải gắn v2 → thu v1 bị từ chối → SV không xem được danh sách → thống kê | `node dist/index.js` + `fetch` | 13/13 đạt; log không có lỗi | Server thật, vé **giả** |
 | Test HTTP bài tập (`assignments.test.ts`): tạo bài, code phrase không trùng, giới hạn manifest, VPS đầy, xin lại vé, phát hành lặp, `/join` trước/sau phát hành, giới hạn nhập sai, đủ SV, quyền xem, thống kê, sửa, xoá, D dọn lỗi | SQLite trong bộ nhớ, đồng hồ giả, **vé giả** | Đạt | Server thật, vé **giả** |

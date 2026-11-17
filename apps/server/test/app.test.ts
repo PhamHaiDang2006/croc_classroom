@@ -128,6 +128,31 @@ describe('registerEndpoint', () => {
     expect(res.json().error.code).toBe('VALIDATION_FAILED');
   });
 
+  it('Content-Type json nhưng body rỗng: coi như không có body (review M0–M3)', async () => {
+    await appWithTestRoutes();
+    const json = { authorization: 'Bearer sv', 'content-type': 'application/json' };
+    const noBody = await app.inject({ method: 'DELETE', url: '/test/thing', headers: json });
+    expect(noBody.statusCode).toBe(204);
+    const blank = await app.inject({ method: 'DELETE', url: '/test/thing', headers: json, payload: '  \n' });
+    expect(blank.statusCode).toBe(204);
+    // Endpoint cần body: báo thiếu trường cụ thể thay vì lỗi parser.
+    const missing = await app.inject({ method: 'POST', url: `/test/echo/${ID}`, headers: { ...json, authorization: 'Bearer gv' } });
+    expect(missing.statusCode).toBe(400);
+    expect(missing.json().error.details).toEqual([{ path: 'body.title', message: expect.any(String) }]);
+  });
+
+  it('vẫn chặn JSON có __proto__ (parser mặc định của Fastify)', async () => {
+    await appWithTestRoutes();
+    const res = await app.inject({
+      method: 'POST',
+      url: `/test/echo/${ID}`,
+      headers: { authorization: 'Bearer gv', 'content-type': 'application/json' },
+      payload: '{"title":"x","__proto__":{"isAdmin":true}}',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('VALIDATION_FAILED');
+  });
+
   it('phản hồi lệch hợp đồng → 500 INTERNAL, không lộ dữ liệu sai', async () => {
     await appWithTestRoutes();
     const res = await app.inject({ method: 'GET', url: '/test/drift', headers: { authorization: 'Bearer sv' } });

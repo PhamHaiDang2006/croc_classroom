@@ -50,6 +50,20 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     },
   });
 
+  // Body JSON rỗng (client đặt Content-Type: application/json cho mọi POST, kể cả POST không có body
+  // như /auth/logout) coi như không có body, thay vì 400 của parser mặc định (review M0–M3, lỗi medium).
+  // Body không rỗng vẫn qua parser mặc định của Fastify để giữ chặn __proto__ / constructor.
+  const defaultJsonParser = app.getDefaultJsonParser('error', 'error');
+  app.removeContentTypeParser('application/json');
+  app.addContentTypeParser('application/json', { parseAs: 'string' }, (request, body, done) => {
+    const text = typeof body === 'string' ? body : body.toString('utf8');
+    if (text.trim() === '') {
+      done(null, undefined);
+      return;
+    }
+    defaultJsonParser(request, text, done);
+  });
+
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof AppError) {
       return reply.code(error.httpStatus).send(error.toBody());

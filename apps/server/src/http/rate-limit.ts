@@ -65,8 +65,34 @@ export class FailureLimiter {
 }
 
 /**
- * 10 lần sai / 5 phút cho mỗi (tài khoản + IP) — system-design mục 8.
- * Cố ý KHÔNG giới hạn riêng theo IP: cả lớp thường chung một IP công khai (NAT của trường),
- * giới hạn theo IP sẽ khoá cả lớp khi nhiều SV gõ sai mật khẩu cùng lúc đầu giờ.
+ * 10 lần sai / 5 phút cho mỗi (tài khoản + nhóm IP) — system-design mục 8.
  */
 export const ACCOUNT_FAILURE_RULE: RateLimitRule = { maxFailures: 10, windowMs: 5 * 60_000 };
+
+/**
+ * Trần theo nhóm IP, cộng mọi tài khoản: chặn dò mật khẩu hàng loạt và làm nghẽn CPU bằng Argon2.
+ * Đặt rất cao vì cả lớp thường chung một IP công khai (NAT của trường): 60 SV gõ sai vài lần đầu giờ
+ * chỉ vài chục đến vài trăm lần, còn xa mức này.
+ */
+export const IP_FAILURE_RULE: RateLimitRule = { maxFailures: 1000, windowMs: 5 * 60_000 };
+
+/**
+ * Khoá dùng để đếm theo IP. IPv4 giữ nguyên; IPv6 lấy dải /64 (một máy/mạng nhà thường có cả dải /64
+ * và đổi địa chỉ trong dải tuỳ ý, nên đếm theo từng địa chỉ thì vượt giới hạn dễ dàng). Địa chỉ IPv4
+ * dạng `::ffff:a.b.c.d` coi như IPv4; bỏ phần zone `%eth0`.
+ */
+export function ipBucket(ip: string): string {
+  const address = ip.split('%')[0]!.toLowerCase();
+  if (!address.includes(':')) return address;
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(address);
+  if (mapped) return mapped[1]!;
+
+  const [headPart, tailPart] = address.split('::') as [string, string | undefined];
+  const groupsOf = (part: string | undefined): string[] =>
+    part ? part.split(':').flatMap((g) => (g.includes('.') ? ['0', '0'] : [g])) : [];
+  const head = groupsOf(headPart);
+  const tail = groupsOf(tailPart);
+  const groups = tailPart === undefined ? head : [...head, ...Array<string>(Math.max(0, 8 - head.length - tail.length)).fill('0'), ...tail];
+  const prefix = groups.slice(0, 4).map((g) => (Number.parseInt(g || '0', 16) || 0).toString(16));
+  return `${prefix.join(':')}::/64`;
+}

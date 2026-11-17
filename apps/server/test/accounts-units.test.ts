@@ -2,9 +2,9 @@ import { argon2Sync } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { normalizeActivationCode } from '@croc-classroom/shared';
 import { parseStudentCsv, MAX_IMPORT_ROWS } from '../src/accounts/csv.js';
-import { DEFAULT_ARGON2_PARAMS, hashPassword, verifyPassword } from '../src/accounts/password.js';
+import { DEFAULT_ARGON2_PARAMS, HashGate, hashPassword, verifyPassword } from '../src/accounts/password.js';
 import { generateActivationCode, generateSessionToken, hashActivationCode } from '../src/accounts/tokens.js';
-import { FailureLimiter } from '../src/http/rate-limit.js';
+import { FailureLimiter, ipBucket } from '../src/http/rate-limit.js';
 import { FAST_ARGON2, FakeClock, MINUTE } from './helpers.js';
 
 describe('Argon2id (crypto.argon2 của Node)', () => {
@@ -106,5 +106,60 @@ describe('giới hạn số lần sai', () => {
     for (let i = 0; i < 10; i++) limiter.recordFailure('k');
     limiter.reset('k');
     expect(() => limiter.assertAllowed('k')).not.toThrow();
+  });
+});
+
+describe('nhóm IP để đếm sai (review M0–M3)', () => {
+  it.each([
+    ['203.0.113.7', '203.0.113.7'],
+    ['::ffff:203.0.113.7', '203.0.113.7'],
+    ['2001:db8:1:2:3:4:5:6', '2001:db8:1:2::/64'],
+    ['2001:db8:1:2::abcd', '2001:db8:1:2::/64'],
+    ['2001:DB8:1:2:ffff::1', '2001:db8:1:2::/64'],
+    ['2001:db8::1', '2001:db8:0:0::/64'],
+    ['fe80::1%eth0', 'fe80:0:0:0::/64'],
+    ['::1', '0:0:0:0::/64'],
+    ['2001:db8:1:2::ffff:1.2.3.4', '2001:db8:1:2::/64'],
+  ])('%s → %s', (ip, bucket) => {
+    expect(ipBucket(ip)).toBe(bucket);
+  });
+});
+
+describe('giới hạn số lần băm Argon2 chạy cùng lúc (review M0–M3)', () => {
+  it('chạy tối đa N lượt cùng lúc, phần còn lại chờ theo thứ tự; hàng chờ đầy → RATE_LIMITED', async () => {
+    const gate = new HashGate(2, 2);
+    let running = 0;
+    let peak = 0;
+    const order: number[] = [];
+    const releases: (() => void)[] = [];
+    const task = (id: number) =>
+      gate.run(async () => {
+        running++;
+        peak = Math.max(peak, running);
+        await new Promise<void>((resolve) => releases.push(resolve));
+        running--;
+        order.push(id);
+        return id;
+      });
+
+    const jobs = [task(1), task(2), task(3), task(4)];
+    await Promise.resolve();
+    expect(gate.stats).toEqual({ active: 2, waiting: 2 });
+    await expect(task(5)).rejects.toMatchObject({ code: 'RATE_LIMITED' });
+
+    while (releases.length > 0 || order.length < 4) {
+      releases.shift()?.();
+      await new Promise((resolve) => setImmediate(resolve));
+    }
+    await expect(Promise.all(jobs)).resolves.toEqual([1, 2, 3, 4]);
+    expect(peak).toBe(2);
+    expect(gate.stats).toEqual({ active: 0, waiting: 0 });
+  });
+
+  it('lượt lỗi vẫn trả chỗ cho lượt sau', async () => {
+    const gate = new HashGate(1, 5);
+    await expect(gate.run(async () => { throw new Error('hỏng'); })).rejects.toThrow('hỏng');
+    await expect(gate.run(async () => 'ok')).resolves.toBe('ok');
+    expect(gate.stats).toEqual({ active: 0, waiting: 0 });
   });
 });

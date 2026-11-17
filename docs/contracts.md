@@ -64,11 +64,15 @@ Kết quả chạy với mock không chứng minh luồng thật. Thông tin đ�
 - Đăng nhập: không có tài khoản hoặc sai mật khẩu → `INVALID_CREDENTIALS`; SV chưa kích hoạt →
   `ACCOUNT_NOT_ACTIVATED`; `ACCOUNT_DISABLED` chỉ trả khi mật khẩu đúng. Kích hoạt: sai/hết hạn/đã
   dùng mã hoặc MSSV không có đều là `ACTIVATION_INVALID`.
-- `RATE_LIMITED` có `details.retryAfterSeconds`.
+- `RATE_LIMITED` có `details.retryAfterSeconds`. Đếm sai theo (tài khoản + nhóm IP), cộng thêm trần
+  1000 lần sai / 5 phút theo nhóm IP cho đăng nhập + kích hoạt. Nhóm IP: IPv4 giữ nguyên, IPv6 theo dải /64.
+  Server bận băm mật khẩu (hàng chờ đầy) cũng trả `RATE_LIMITED`.
+- POST không có body: client được gửi hoặc không gửi `Content-Type: application/json`; body rỗng coi như không có body.
 - Tạo bài: manifest sai cú pháp/đường dẫn → `VALIDATION_FAILED` (`details` chỉ vị trí); quá số file →
   `MANIFEST_INVALID`; quá dung lượng → `PAYLOAD_TOO_LARGE`; không mở được vé → lỗi của dịch vụ vé
   (thường `CAPACITY_EXHAUSTED`) và bài KHÔNG được tạo.
-- `/join`: nhập sai code tính vào giới hạn 10 lần / 5 phút / (SV + IP); code sai định dạng là
+- `/join`: nhập sai code tính vào giới hạn 10 lần / 5 phút / (SV + nhóm IP), chỉ xoá khi vào bài MỚI (vào lại
+  bài đã tham gia không xoá bộ đếm); code sai định dạng là
   `VALIDATION_FAILED` và không tính. Đủ `maxStudentsPerAssignment` → `ASSIGNMENT_FULL` (SV đã tham gia vẫn vào lại được).
 - Thống kê bài: xem chú thích `AssignmentStatsSchema` trong `dto.ts` (`late` tính theo bản nộp mới nhất).
 - Server kiểm tra phản hồi theo schema trước khi gửi (`VALIDATE_RESPONSES`); lệch hợp đồng thành `INTERNAL`.
@@ -121,6 +125,8 @@ Kết quả chạy với mock không chứng minh luồng thật. Thông tin đ�
   `\ < > : " | ? *`, tên kết thúc bằng dấu cách hoặc dấu chấm, tên dành riêng của Windows.
 - Không trùng khi bỏ qua hoa thường; một đường dẫn không vừa là file vừa là thư mục cha.
 - Chỉ có file thường; symlink bị từ chối khi tính, coi là thừa khi xác minh; thư mục rỗng không truyền.
+- Khi xác minh, hai file trên đĩa trùng đường dẫn sau chuẩn hoá NFC (ví dụ `Đề.txt` NFC và NFD — Linux,
+  Windows cho phép) bị báo `duplicate` và không đạt: không để file giả lọt qua dưới tên giống hệt.
 - Giới hạn số file: `maxManifestFiles` (mặc định 10.000).
 - Mã băm tổng: SHA-256 của `croc-classroom-manifest-v1\n` nối các dòng `<sha256> <size> <path>\n`
   sắp theo byte UTF-8 của đường dẫn. Giá trị tham chiếu nằm trong `manifest-fs.test.ts`.

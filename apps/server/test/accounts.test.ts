@@ -230,6 +230,35 @@ describe('giới hạn tần suất', () => {
     expect((await loginStudent('20210001')).statusCode).toBe(200);
   });
 
+  it('đổi địa chỉ IPv6 trong cùng dải /64 không thoát giới hạn của tài khoản (review M0–M3)', async () => {
+    h = await accountsHarness();
+    const { '20210001': an } = await importStudents(await h.loginLecturer());
+    await activate('20210001', an!.code);
+    const loginFrom = (remoteAddress: string, password: string) =>
+      h.app.inject({ method: 'POST', url: '/auth/login', remoteAddress, payload: { role: 'student', mssv: '20210001', password } });
+    for (let i = 1; i <= 10; i++) expect((await loginFrom(`2001:db8:1:2::${i.toString(16)}`, 'sai-mat-khau')).statusCode).toBe(401);
+    expect((await loginFrom('2001:db8:1:2::ffff', STUDENT_PASSWORD)).statusCode).toBe(429);
+    // Mạng khác thì không bị ảnh hưởng.
+    expect((await loginFrom('2001:db8:9:9::1', STUDENT_PASSWORD)).statusCode).toBe(200);
+  });
+
+  it('trần theo IP: dò nhiều tài khoản từ một nguồn thì bị chặn (trần hạ xuống để test)', async () => {
+    h = await accountsHarness({ ipFailureRule: { maxFailures: 15, windowMs: 5 * MINUTE } });
+    const loginAs = (mssv: string) =>
+      h.app.inject({ method: 'POST', url: '/auth/login', remoteAddress: '198.51.100.9', payload: { role: 'student', mssv, password: 'doan-mo-mat-khau' } });
+    for (let i = 0; i < 15; i++) expect((await loginAs(`9999${String(i).padStart(4, '0')}`)).statusCode).toBe(401);
+    const blocked = await loginAs('99990099');
+    expect([blocked.statusCode, errorCode(blocked)]).toEqual([429, 'RATE_LIMITED']);
+    // Kích hoạt từ cùng nguồn cũng bị chặn.
+    const act = await h.app.inject({
+      method: 'POST',
+      url: '/auth/activate',
+      remoteAddress: '198.51.100.9',
+      payload: { mssv: '20210001', activationCode: 'AAAA-BBBB-CCCC', newPassword: 'mat-khau-moi-1' },
+    });
+    expect(errorCode(act)).toBe('RATE_LIMITED');
+  });
+
   it('kích hoạt sai 10 lần thì bị chặn', async () => {
     h = await accountsHarness();
     const { '20210001': an } = await importStudents(await h.loginLecturer());

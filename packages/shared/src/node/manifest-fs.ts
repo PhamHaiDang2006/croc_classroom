@@ -116,14 +116,20 @@ export type VerifyProblem =
   | { kind: 'extra'; path: string }
   | { kind: 'size_mismatch'; path: string; expected: number; actual: number }
   | { kind: 'hash_mismatch'; path: string }
-  | { kind: 'not_regular_file'; path: string };
+  | { kind: 'not_regular_file'; path: string }
+  /**
+   * Hai file trên đĩa có cùng đường dẫn sau khi chuẩn hoá NFC (ví dụ `Đề.txt` dạng NFC và dạng NFD —
+   * Linux, Windows cho phép cùng tồn tại). Không xác định được file nào là bản đúng → coi là lỗi.
+   */
+  | { kind: 'duplicate'; path: string };
 
 export type VerifyResult = { ok: true } | { ok: false; problems: VerifyProblem[] };
 
 /**
  * Xác minh một thư mục theo manifest: thiếu file, thừa file (kể cả symlink, file đặc biệt), sai kích
- * thước, sai SHA-256. Tên file trên đĩa được chuẩn hoá NFC trước khi so (macOS lưu dạng NFD).
- * Thư mục rỗng thừa không bị coi là lỗi. Kiểm tra kích thước trước, chỉ băm khi kích thước khớp.
+ * thước, sai SHA-256, hai file trùng tên sau chuẩn hoá. Tên file trên đĩa được chuẩn hoá NFC trước khi
+ * so (macOS lưu dạng NFD). Thư mục rỗng thừa không bị coi là lỗi. Kiểm tra kích thước trước, chỉ băm
+ * khi kích thước khớp.
  */
 export async function verifyDirectory(root: string, manifest: Pick<Manifest, 'files'>): Promise<VerifyResult> {
   const problems: VerifyProblem[] = [];
@@ -133,8 +139,13 @@ export async function verifyDirectory(root: string, manifest: Pick<Manifest, 'fi
     Number.POSITIVE_INFINITY,
   );
 
+  // Không được để file sau ghi đè file trước trong Map: file giả mang tên NFD trùng với tên NFC của
+  // file đúng sẽ lọt qua kiểm tra "thừa" (review M0–M3, lỗi critical).
   const onDisk = new Map<string, FoundFile>();
-  for (const file of found) onDisk.set(file.path, file);
+  for (const file of found) {
+    if (onDisk.has(file.path)) problems.push({ kind: 'duplicate', path: file.path });
+    else onDisk.set(file.path, file);
+  }
 
   const expected = new Set<string>();
   for (const entry of manifest.files) {
