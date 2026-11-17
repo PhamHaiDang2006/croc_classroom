@@ -1,6 +1,7 @@
 # croc-classroom — Giao–Nộp bài tập qua croc
 
-> Tên dự án tạm. Trạng thái: **mới có tài liệu thiết kế và danh sách việc cần làm, chưa có mã nguồn.**
+> Tên dự án tạm. Trạng thái: **đang ở M0 — có workspace, hợp đồng v1 (chờ review) và khung server;
+> chưa có tính năng nghiệp vụ, chưa có app desktop, chưa có engine croc thật.**
 
 Ứng dụng desktop (Electron) giúp **một giảng viên** giao bài cho sinh viên bằng **một code phrase duy nhất**
 và nhận bài nộp. File được truyền bằng [croc](https://github.com/schollz/croc), có mã hoá đầu–cuối, qua relay
@@ -13,15 +14,15 @@ riêng đặt trên VPS. Sinh viên đã nhận đề sẽ tự chia sẻ lại 
 ## Làm việc nhóm 4 người với AI
 
 Repository đã có **phân công theo vai trò A/B/C/D và prompt làm việc**, chưa gán tên
-thành viên và chưa triển khai mã nguồn. Bắt đầu bằng mốc M0 để dựng nền chung và
-review hợp đồng giao tiếp trước khi các phần phụ thuộc được triển khai song song.
+thành viên. Mốc M0 đang dựng nền chung; các bên cần review hợp đồng giao tiếp
+trước khi phần phụ thuộc được triển khai song song.
 
 | Tài liệu | Mục đích |
 |---|---|
 | [AGENTS.md](AGENTS.md) | Quy tắc AI phải đọc, phạm vi sửa và tiêu chí bàn giao |
 | [Phân công và mốc tích hợp](docs/team-plan.md) | Vai trò 4 người, file chung, phụ thuộc và quy trình PR |
 | [Prompt cho từng người](docs/ai-prompts.md) | Prompt bootstrap M0, prompt chung, A/B/C/D và kiểm tra tích hợp |
-| [Danh mục hợp đồng](docs/contracts.md) | Các interface cần chốt; hiện chưa có hợp đồng v1 thực thi |
+| [Hợp đồng giao tiếp](docs/contracts.md) | Vị trí định nghĩa hợp đồng v1, quy tắc ngữ nghĩa, trạng thái review |
 | [Quyết định và vấn đề mở](docs/decisions.md) | Những điểm cần nhóm thống nhất |
 | [Mẫu bàn giao](docs/handoffs/README.md) | Cách báo kết quả và đề nghị đổi hợp đồng |
 | [Checklist tích hợp](docs/integration-checklist.md) | Điều kiện nghiệm thu theo từng mốc |
@@ -29,9 +30,36 @@ review hợp đồng giao tiếp trước khi các phần phụ thuộc được
 Mỗi người dùng checkout/worktree riêng. Dán prompt chung rồi prompt vai trò từ
 `docs/ai-prompts.md`; không để bốn AI sửa đồng thời cùng một thư mục làm việc.
 
+## Lệnh phát triển
+
+Cần Node.js 24 LTS (≥ 24.11) và npm 11. Mọi lệnh chạy ở thư mục gốc.
+
+| Lệnh | Việc |
+|---|---|
+| `npm install` | Cài phụ thuộc cho mọi gói (workspaces); CI dùng `npm ci` |
+| `npm run lint` | ESLint, gồm luật chặn renderer và phần shared dùng cho renderer import Node.js |
+| `npm run typecheck` | Kiểm tra kiểu toàn bộ mã nguồn và test (`tsc -p tsconfig.json`) |
+| `npm test` | Vitest cho mọi gói; test trỏ thẳng vào mã nguồn, không cần build trước |
+| `npm run build` | Build theo thứ tự `shared` → `croc-engine` → `server` (ra `dist/`) |
+| `npm run check` | Chạy cả bốn lệnh trên, giống CI |
+
+Chạy server ở máy (cần build trước):
+
+```bash
+cp apps/server/.env.example apps/server/.env   # sửa RELAY_ADDRESS, RELAY_PASS
+npm run build
+npm start -w @croc-classroom/server
+```
+
+Server tạo `apps/server/data/db/croc-classroom.sqlite` và áp dụng migration khi khởi động;
+`GET /health` trả trạng thái. Hiện mới có `/health`; các route nghiệp vụ thêm dần từ M1.
+
+App desktop chưa chạy được: khung Electron do B dựng. Giao diện có thể làm trước với
+`createMockCrocApi()` từ `@croc-classroom/shared/mocks`.
+
 ## Tính năng chính
 
-- **Giao bài:** giảng viên tạo bài và nhận về một code phrase (ví dụ `sao-mai-xanh-42`) để đưa cho cả lớp.
+- **Giao bài:** giảng viên tạo bài và nhận về một code phrase (ví dụ `sao-mai-xanh-042`) để đưa cho cả lớp.
 - **Nhận bài:** sinh viên đăng nhập rồi nhập code. App nhận đề theo thứ tự ưu tiên: bạn cùng mạng LAN, rồi VPS, rồi bạn ở mạng khác qua Internet.
 - **Chia sẻ lại:** sinh viên đã nhận và đã kiểm tra xong file sẽ tự động trở thành nguồn phát cho người đến sau.
 - **Nộp bài:** đường đi sinh viên → VPS → giảng viên. Sinh viên nhận biên nhận; hệ thống ghi giờ nộp theo giờ VPS và đánh dấu nếu trễ hạn.
@@ -72,6 +100,9 @@ Mỗi thư mục module có một `README.md` liệt kê việc cần làm.
 
 ## Thứ tự xây dựng
 
+Nhóm làm theo các mốc M0–M5 trong [team-plan.md](docs/team-plan.md). Thứ tự kỹ thuật dưới đây
+là gợi ý ban đầu của system-design mục 15.
+
 1. [`packages/croc-engine`](packages/croc-engine/README.md) và [`packages/shared`](packages/shared/README.md).
 2. [`deploy`](deploy/README.md): chạy relay và server rỗng trên VPS, **thử kết nối cổng relay từ mạng trường**.
 3. [`apps/server`](apps/server/README.md): tài khoản, bài tập, VPS worker.
@@ -80,9 +111,9 @@ Mỗi thư mục module có một `README.md` liệt kê việc cần làm.
 6. Nộp bài và giảng viên thu bài: [`submissions`](apps/server/src/submissions/README.md).
 7. Đóng gói cho ba hệ điều hành và [thử nghiệm thật một buổi học](tests/e2e/README.md).
 
-## Yêu cầu môi trường (dự kiến)
+## Yêu cầu môi trường
 
-- Node.js LTS, npm hoặc pnpm (workspaces).
+- Node.js 24 LTS, npm 11 (workspaces) — xem quyết định D-001.
 - croc **10.7.0**, được khoá phiên bản và đóng gói kèm app.
 - VPS chạy Docker và Docker Compose, có tên miền (dùng tên miền miễn phí như DuckDNS cũng được).
 - Một máy Mac để build bản macOS.

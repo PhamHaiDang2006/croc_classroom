@@ -1,0 +1,32 @@
+{
+  "name": "@croc-classroom/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Kiểu dữ liệu, schema và hợp đồng REST/WebSocket/IPC dùng chung; manifest; code phrase.",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node/index.d.ts",
+      "default": "./dist/node/index.js"
+    },
+    "./fixtures": {
+      "types": "./dist/fixtures/index.d.ts",
+      "default": "./dist/fixtures/index.js"
+    },
+    "./mocks": {
+      "types": "./dist/mocks/index.d.ts",
+      "default": "./dist/mocks/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}

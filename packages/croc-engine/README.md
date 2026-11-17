@@ -5,9 +5,19 @@ Bọc croc CLI. Đây là **nơi duy nhất** trong hệ thống chạy croc và
 
 Thiết kế: mục 3, 4.2 và 6 trong [system-design.md](../../docs/system-design.md).
 
+## Trạng thái sau M0 bootstrap
+
+Gói đã có trong workspace, nhưng **chưa có engine thật**:
+
+- `src/types.ts`: interface `CrocEngine` v1 (đề xuất, B quản lý, chờ B/D review — xem [contracts.md](../../docs/contracts.md)).
+- `src/testing/loopback.ts`: `createLoopbackEngine()` — engine GIẢ ghép send/receive trong cùng tiến trình
+  Node để B/D viết test trước. Không chạy croc, không chứng minh truyền thật.
+
 ## Việc cần làm
 
-- [ ] Khởi tạo package TypeScript trong workspace.
+- [x] Khởi tạo package TypeScript trong workspace.
+- [ ] Review và chốt interface trong `src/types.ts` (B, D).
+- [ ] `generateCode()` thật: định dạng croc chấp nhận, ≥ 128 bit, kiểm chứng cách relay chia phòng khi nhiều lượt song song.
 - [ ] Script tải croc **10.7.0** bản chính thức cho các nền tảng: Windows x64, macOS x64, macOS arm64, Linux x64, rồi kiểm tra checksum từ trang phát hành.
 - [ ] Hàm tìm đường dẫn file chạy croc trong ba môi trường: khi phát triển, trong app đã đóng gói, và trong container server.
 - [ ] Định nghĩa **quy ước gốc bộ file (payload)**: gửi thư mục gốc như thế nào, bên nhận tìm gốc ở đâu. Mọi nơi dùng chung một quy ước.

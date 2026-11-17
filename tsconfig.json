@@ -1,0 +1,23 @@
+{
+  "//": "Kiểm tra kiểu cho toàn bộ monorepo (mã nguồn + test). Build từng gói dùng tsconfig.build.json trong gói đó.",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"],
+    "paths": {
+      "@croc-classroom/shared": ["./packages/shared/src/index.ts"],
+      "@croc-classroom/shared/node": ["./packages/shared/src/node/index.ts"],
+      "@croc-classroom/shared/fixtures": ["./packages/shared/src/fixtures/index.ts"],
+      "@croc-classroom/shared/mocks": ["./packages/shared/src/mocks/index.ts"],
+      "@croc-classroom/croc-engine": ["./packages/croc-engine/src/index.ts"],
+      "@croc-classroom/croc-engine/testing": ["./packages/croc-engine/src/testing/index.ts"]
+    }
+  },
+  "include": [
+    "packages/*/src",
+    "packages/*/test",
+    "apps/*/src",
+    "apps/*/test",
+    "vitest.config.ts"
+  ]
+}

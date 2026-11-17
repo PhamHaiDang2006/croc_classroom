@@ -12,6 +12,15 @@ Thiết kế: mục 5, 7, 8 (phần Electron) và 11 trong [system-design.md](..
 | [`src/preload`](src/preload/README.md) | Cầu IPC an toàn |
 | [`src/renderer`](src/renderer/README.md) | Giao diện React |
 
+## Trạng thái sau M0 bootstrap
+
+Mới có `package.json` khai báo gói trong workspace (phụ thuộc `shared`, `croc-engine`); **chưa có
+Electron**. B dựng khung electron-vite + React (D-001 để B chọn công cụ desktop).
+
+- Hợp đồng IPC (`window.croc`): `packages/shared/src/ipc.ts` — chờ B, A review.
+- A làm giao diện trước bằng `createMockCrocApi()` từ `@croc-classroom/shared/mocks`.
+- ESLint đã chặn `src/renderer/**` import `electron`, croc-engine, `shared/node` và module Node.js.
+
 ## Việc cần làm (khung app và đóng gói)
 
 - [ ] Khởi tạo electron-vite + React + TypeScript trong workspace; dùng [`packages/shared`](../../packages/shared/README.md) và [`packages/croc-engine`](../../packages/croc-engine/README.md).

@@ -1,15 +1,20 @@
 # Checklist tích hợp nhóm
 
-Chưa có mục nào được kiểm chứng. Chỉ đánh dấu khi có bằng chứng trong bàn giao/PR.
+Chỉ đánh dấu khi có bằng chứng trong bàn giao/PR.
 Mỗi lần chạy ghi commit, môi trường, lệnh hoặc bước thực hiện, kết quả và lỗi.
 
 ## M0 — Nền chung
 
-- [ ] Workspace và lệnh dev/build/typecheck/test được ghi chính xác trong README.
+- [x] Workspace và lệnh dev/build/typecheck/test được ghi chính xác trong README.
+  — C, 2026-11-17, branch `C/Backend`, Linux x64 / Node 24.21; bằng chứng trong `handoffs/C.md`.
 - [ ] Hợp đồng v1 REST, WS, IPC, engine và worker có định nghĩa cụ thể, bên sử dụng đã review.
+  — Đã có định nghĩa (contracts.md); **chưa ai review**.
 - [ ] Fixture và mock dùng chung đúng hợp đồng; renderer không import phụ thuộc Node.js.
+  — Fixture được test bằng schema; ESLint chặn import Node.js ở shared và renderer. Chờ A/B dùng thử.
 - [ ] CI kiểm tra được khung dự án.
+  — Đã có `.github/workflows/ci.yml`, các bước đã chạy được ở máy; **chưa chạy trên GitHub**.
 - [ ] Croc gửi/nhận qua relay cục bộ; kiểm tra cổng relay từ mạng trường và ghi kết quả thật.
+  — Chưa làm (B: engine thật; D: relay và mạng trường).
 
 ## M1 — Tài khoản
 

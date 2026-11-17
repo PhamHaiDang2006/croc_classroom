@@ -1,0 +1,32 @@
+{
+  "name": "croc-classroom",
+  "private": true,
+  "type": "module",
+  "description": "Giao–nộp bài tập qua croc: monorepo gồm app desktop, server điều phối và các gói dùng chung.",
+  "workspaces": [
+    "packages/shared",
+    "packages/croc-engine",
+    "apps/server",
+    "apps/desktop"
+  ],
+  "engines": {
+    "node": ">=24.11.0"
+  },
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.19.2",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.73.0",
+    "vitest": "^5.1.0"
+  }
+}
