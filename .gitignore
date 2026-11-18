@@ -1,0 +1,22 @@
+# Phụ thuộc và kết quả build
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Cấu hình chứa secret
+.env
+.env.*
+!.env.example
+
+# Dữ liệu server khi chạy thử ở máy
+apps/server/data/
+
+# File chạy croc tải về lúc build (B quản lý cách tải và vị trí)
+packages/croc-engine/bin/
+packages/croc-engine/.cache/
+
+# Hệ điều hành / editor
+.DS_Store
+Thumbs.db
+*.log

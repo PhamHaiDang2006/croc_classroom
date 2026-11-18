@@ -2,7 +2,8 @@
 
 ## Trạng thái và nguồn tham chiếu
 
-Repository hiện chỉ có tài liệu và checklist, chưa có ứng dụng chạy được.
+Repository: có workspace, hợp đồng v1 trong `packages/shared` (chờ review), server có module tài khoản
+(M1), bài tập (M2), bài nộp (M3). Chưa có truyền file thật, app desktop hay engine croc thật.
 Các prompt là hướng dẫn công việc tương lai, không phải bằng chứng đã triển khai.
 
 Trước khi làm, đọc:
@@ -48,8 +49,9 @@ Chủ module có thể sửa tài liệu bàn giao của mình trong `docs/hando
 - Không ghi đè thay đổi của người khác, không tự commit/push/merge nếu chưa được giao.
 - Không thêm tính năng ngoài thiết kế; ghi quyết định kỹ thuật vào `docs/decisions.md`.
 - Không ghi secret, token, mật khẩu relay hoặc code croc vào log/tài liệu mẫu.
-- Hiện chưa có lệnh build/test. Khi bootstrap, C phải ghi lệnh chính xác đã chạy vào
-  README gốc. Không báo đã test nếu chỉ có checklist hoặc mock.
+- Lệnh lint/typecheck/test/build ghi trong README gốc, mục "Lệnh phát triển";
+  `npm run check` chạy đủ như CI. Không báo đã test nếu chỉ có checklist hoặc mock.
+- Route server đăng ký qua `registerEndpoint` với định nghĩa trong `endpoints` của shared.
 - Khi có mã nguồn, chạy typecheck, kiểm thử phù hợp và build phần bị ảnh hưởng;
   chạy tích hợp thật cho mốc có truyền file khi môi trường cho phép.
 - Nếu thiếu môi trường, ghi rõ kiểm tra chưa chạy và lý do; không coi đó là đạt.

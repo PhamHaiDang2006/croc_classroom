@@ -1,0 +1,22 @@
+{
+  "name": "@croc-classroom/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Server điều phối: tài khoản, bài tập, vé, chọn nguồn, bài nộp, VPS worker.",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "node -e \"fs.rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.build.json",
+    "start": "node --env-file-if-exists=.env dist/index.js",
+    "cli": "node --env-file-if-exists=.env dist/cli.js"
+  },
+  "dependencies": {
+    "@croc-classroom/shared": "0.1.0",
+    "better-sqlite3": "^13.2.0",
+    "fastify": "^5.12.8",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0"
+  }
+}

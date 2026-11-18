@@ -1,0 +1,11 @@
+{
+  "name": "@croc-classroom/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "App Electron cho giảng viên và sinh viên. Khung electron-vite + React do B dựng (chưa có ở M0).",
+  "dependencies": {
+    "@croc-classroom/croc-engine": "0.1.0",
+    "@croc-classroom/shared": "0.1.0"
+  }
+}
