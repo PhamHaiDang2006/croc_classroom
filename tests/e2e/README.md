@@ -6,9 +6,13 @@ Thiết kế: mục 2 (chống mục tiêu), 7, 14 và 15 trong [system-design.m
 
 ## Trạng thái
 
-Đây hiện là kế hoạch kiểm thử, chưa có harness hay test nào chạy được. E2E cần
-server, `packages/shared`, croc-engine và client không giao diện từ các vai trò
-C/B; D điều phối môi trường/kịch bản nhưng chủ module sửa lỗi thuộc phần mình.
+Chưa có harness E2E truyền file của ứng dụng. E2E cần server, croc-engine thật
+và client không giao diện từ các vai trò C/B; D điều phối môi trường/kịch bản
+nhưng chủ module sửa lỗi thuộc phần mình.
+
+`node --test tests/e2e/deploy.test.mjs` kiểm tra cấu hình Compose qua Docker
+Compose CLI với giá trị giả; không cần Docker daemon. Đây là test cấu hình,
+không phải E2E hoặc test relay thật.
 
 ## Phụ thuộc trước khi tự động hóa
 
@@ -19,6 +23,24 @@ C/B; D điều phối môi trường/kịch bản nhưng chủ module sửa lỗ
   riêng hoặc dùng mock để tuyên bố đã xác minh truyền file thật.
 - Mỗi kết quả ghi commit, lệnh, môi trường và phân biệt unit/mock, local relay,
   VPS/mạng thật.
+
+## Bộ tình huống vé và worker cần tự động hóa
+
+Dùng interface và fixture v1 sau khi review; không xem `FakeTicketIssuer` của C là
+implementation của D. Các kịch bản sau **chưa có test D**, và chưa được đánh dấu đạt:
+
+| Tình huống | Kết quả cần kiểm tra |
+|---|---|
+| Hai yêu cầu nộp cùng SV/bài | Vé mới thay vé cũ; callback vé cũ không tạo phiên bản. |
+| Thu bài của hai SV cùng lúc | Hai vé khác phiên bản không huỷ lẫn nhau. |
+| Vé nộp đã commit, callback lặp | Cùng biên nhận, không thêm version hoặc dọn file đang dùng. |
+| Kết quả đến sau timeout/huỷ | Không commit hoặc phát hành sai; slot được giải phóng đúng một lần. |
+| Thu v1 trong khi v2 được commit | File v1 còn đến khi lượt thu kết thúc; sau đó dọn được an toàn. |
+| Queue FIFO, VPS đầy, seeder rảnh/bận | Đúng thứ tự chọn nguồn, không vượt slot; huỷ không làm kẹt hàng đợi. |
+| `serve.accept` muộn hoặc lặp | Không cấp lại slot, không đánh thức sai vé. |
+| Restart và reconnect | Vé chưa kết thúc được huỷ theo hợp đồng; dọn tạm và đồng bộ lại, không giữ slot mãi. |
+| Manifest sai hoặc vượt giới hạn nhận | Không đưa file chưa xác minh vào kho, dọn file tạm. |
+| Xoá bài đồng thời có lượt truyền | Không còn lượt/vé/file phát sinh sau khi xoá hoàn tất; retry và restart an toàn. |
 
 ## Việc cần làm
 

@@ -1,13 +1,17 @@
 # Yêu cầu hợp đồng của vai trò D
 
-- Mốc: M0 prerequisite cho distribution, VPS worker và deploy
-- Trạng thái: đề xuất, chưa được C/B review hoặc chấp thuận
-- Phiên bản hợp đồng: chưa có v1
+- Mốc: review đề xuất v1 sau khi tích hợp C/Backend
+- Trạng thái: đã đọc và nêu điểm cần làm rõ; chưa được C/B review hoặc chấp thuận
+- Phiên bản hợp đồng: v1 đề xuất, chưa được các bên sử dụng chốt
+
+Những mục dưới đây là yêu cầu review/đề xuất, không thay schema hoặc cho phép
+triển khai phần phụ thuộc trước khi C/B và D thống nhất.
 
 ## 1. Quyền xác nhận và vòng đời vé
 
-- Hiện tại: thiết kế mô tả `POST /tickets/:id/result`, các thông điệp WS kết quả
-  và trạng thái vé, nhưng chưa quy định ai là nguồn sự thật hoặc cách chống kết quả lặp.
+- Hiện tại: `contracts.md` v1 đã quy định nguồn xác nhận theo loại vé, trạng thái
+  cuối và xử lý lặp. Cần review việc thực thi khi worker hoàn tất đồng thời với
+  huỷ, hết hạn, xin lại vé hoặc xoá bài.
 - Đề xuất: mỗi vé có ID ổn định và chuyển trạng thái idempotent; worker là bên duy
   nhất xác nhận upload đề/nộp bài đã lưu trên VPS sau khi xác minh manifest. Với
   `phat_de` và `gv_thu_bai`, client nhận xác nhận hoàn tất sau khi xác minh ở phía
@@ -18,10 +22,24 @@
 - Kiểm chứng: gửi lặp cùng kết quả không tăng version/giải phóng slot hai lần;
   kết quả sai vai trò bị từ chối; restart không làm vé hoàn tất giả.
 
+### Upload đề bị thay hoặc hết hạn
+
+- Hiện tại: `AssignmentsService.onUploadStored` nhận `ticketId` nhưng chỉ cập nhật
+  theo `assignmentId` và trạng thái bài; không kiểm tra vé còn chạy/khớp. Interface
+  trả `void`, nên D không biết callback được chấp nhận hay bài đã xoá/đã phát hành.
+- Đề xuất C/D review: xác minh vé đúng loại/bài và còn hiệu lực, cùng việc phát
+  hành và kết thúc vé trong transaction; trả kết quả phân biệt đã commit, gọi lặp
+  cùng lượt và vé không còn hợp lệ. D chỉ gửi sự kiện/ghi holdings khi có xác nhận
+  phù hợp và dọn file không được chấp nhận.
+- Ảnh hưởng/migration: C sửa service, D dùng kết quả; thay interface v1 trước khi
+  các bên triển khai. Chưa có worker thật cần migration dữ liệu.
+- Test: vé A bị vé B thay hoặc hết hạn trước callback A; callback trùng; xoá bài
+  đồng thời; vé sai loại/bài; không phát hành hoặc báo thành công sai.
+
 ## 2. Vé truyền và worker
 
-- Hiện tại: module cần yêu cầu worker mở lượt nhận/gửi, nhưng chưa có interface
-  giữa assignments/submissions/distribution và worker hoặc croc-engine.
+- Hiện tại: C đã đề xuất `TicketIssuer`, `TransferOutcomeHandler`, `SeedingStats`
+  và B có `CrocEngine` interface/loopback. Các interface chưa được B/C/D review.
 - Đề xuất: C, B, D thống nhất schema request/result có `ticketId`, loại vé, bên
   gửi/nhận, assignment/submission version, manifest/dung lượng, hạn UTC và nguồn
   relay; code croc chỉ trả về tiến trình liên quan, không lưu trong DB hay log.
@@ -33,14 +51,30 @@
 - Kiểm chứng: upload hợp lệ, hash sai, vượt dung lượng, hết hạn, hủy, gửi lại
   lệnh cùng ticket ID, restart khi đang truyền; không để file dở dang trong kho.
 
+### Giữ phiên bản đang thu và xoá bài đồng thời
+
+- Hiện tại: `collect` đọc `storageRef` rồi gọi `openCollect` bất đồng bộ; commit
+  bài mới trả `supersededStorageRefs`. `purgeAssignment` hoàn tất trước khi C xoá
+  bản ghi bài. Hợp đồng chưa chỉ rõ cách tránh mở vé/commit mới trong các khoảng
+  này, hoặc cách phục hồi việc dọn file sau restart.
+- Đề xuất C/D review: chốt cơ chế đồng bộ theo bài/phiên bản, kiểm tra lại version
+  khi giữ file để thu, và cơ chế lưu/khôi phục công việc xoá an toàn. Không xoá
+  phiên bản đang được thu hoặc cho nhận/vé mới chen vào khi đang xoá bài.
+- Ảnh hưởng/migration: C quản lý giao dịch/schema; D quản lý kho và lifecycle.
+  Thay interface/schema qua quy trình review trước khi triển khai.
+- Test: thu v1 đồng thời nộp v2; tạo vé khi đang xoá; crash trước/sau commit và
+  trước/sau dọn file; callback lặp không mất dữ liệu còn dùng.
+
 ## 3. WebSocket, nguồn phát và hàng đợi
 
-- Hiện tại: các tên sự kiện đã được liệt kê nhưng chưa có envelope, correlation,
-  heartbeat, đồng bộ lại, hoặc ngữ nghĩa timeout/queue.
+- Hiện tại: `packages/shared/src/ws.ts` đã định nghĩa union theo `type`, tương quan
+  theo ticket ID, heartbeat và reconnect. Cần B/C/D review ngữ nghĩa queue/slot,
+  quyền gửi và thứ tự đồng bộ lại với trạng thái vé.
 - Đề xuất: mỗi request/response có correlation theo ticket ID; server là nguồn sự
   thật cho lease/slot và là nơi duy nhất cấp hoặc hủy vé. `serve.accept` phải gắn
   đúng ticket và có deadline; timeout/disconnect/hủy giải phóng lease đúng một lần.
-  Reconnect phải đồng bộ trạng thái/hủy cũ trước khi announce seed lại.
+  Chốt thứ tự reconnect: v1 hiện ghi announce seed trước, sau đó đồng bộ vé;
+  cần thống nhất cách tránh cấp thêm lượt khi trạng thái cũ chưa được xử lý.
 - Bên ảnh hưởng: B (WS client), C (auth/session), D (distribution).
 - Tương thích/migration: chốt event schema và chính sách reconnect trong shared v1
   trước khi A/B/C/D triển khai consumer.
@@ -62,16 +96,16 @@
 
 ## 5. Deploy và healthcheck
 
-- Hiện tại: deploy cần healthcheck server, relay và proxy nhưng endpoint health của
-  server chưa có tên trong hợp đồng.
-- Đề xuất: server công bố `GET /healthz` chỉ cho biết tiến trình phục vụ request;
-  không trả secret/config. Compose dùng endpoint này làm healthcheck. Relay dùng
-  healthcheck TCP của image croc; Caddy healthcheck đọc admin API nội bộ.
+- Hiện tại: C đã cung cấp `GET /health` (kiểm tra DB và trả contract version);
+  Compose đã cập nhật dùng route này. Không cần thêm `/healthz`.
+- Đề xuất: C review Dockerfile trong workspace, Node 24, quyền ghi `/data` và
+  image/CLI. D cấu hình `RELAY_ADDRESS`, `LIMIT_*` và `TRUST_PROXY` theo server;
+  relay dùng healthcheck TCP của image croc, Caddy dùng admin API nội bộ.
 - Cần C xác nhận user/UID của container và quyền ghi `/data`; deploy dùng bind
   mount để sao lưu file và SQLite thuận tiện.
 - Bên ảnh hưởng: C (server route), D (Compose/ops).
-- Tương thích/migration: thêm endpoint không phá vỡ API hiện tại; xác nhận port
-  nội bộ server và đường dẫn trước khi chốt Dockerfile.
+- Tương thích/migration: không đổi endpoint; xác nhận port, build context và
+  đường dẫn trước khi chốt Dockerfile.
 - Kiểm chứng: cấu hình sai/tiến trình dừng được phát hiện; health response không
   tiết lộ relay password, token hoặc đường dẫn dữ liệu.
 
@@ -82,3 +116,18 @@
 | C | REST, DB, ticket authority, health endpoint, trạng thái chia sẻ | Chưa review |
 | B | croc-engine, WS client, xác minh/tiến trình | Chưa review |
 | D | worker, queue, relay, deploy, E2E | Đề xuất |
+
+## Chính sách relay bị lộ / truyền treo
+
+- Hiện tại: mật khẩu relay dùng chung được cấp cho client đăng nhập; thu hồi một
+  phiên không tự làm mật khẩu đã biết mất hiệu lực. Timeout vé tối thiểu dựa trên
+  dung lượng có thể dài nhiều giờ và chưa có ngưỡng không tiến triển.
+- Đề xuất C/B/D review: khi lộ mật khẩu, điều phối dừng/cấp lại các lượt đang chạy,
+  đổi đồng thời cấu hình relay/server, buộc client lấy lại cấu hình sau đăng nhập
+  và thông báo giới hạn: client đã biết mật khẩu cũ còn dùng được đến lúc xoay.
+  B/D thử nghiệm một ngưỡng idle timeout dựa trên tiến độ đáng tin cậy, phân biệt
+  thời gian chờ ghép và đang truyền; không tự chốt trị số khi chưa có số đo.
+- Ảnh hưởng/migration: B xử lý cấu hình lại/cancel, C cấp cấu hình và thu hồi
+  phiên, D quản lý relay/worker. Mọi thay đổi hợp đồng cần review trước khi merge.
+- Test: xoay mật khẩu khi truyền và khi client offline; client cũ thất bại rõ ràng,
+  client có quyền lấy được cấu hình mới; truyền thật chậm không bị nhầm là treo.

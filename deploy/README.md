@@ -7,8 +7,8 @@ Thiết kế: mục 5, 7.1, 13 và 14 trong [system-design.md](../docs/system-de
 ## Trạng thái
 
 Compose, Caddyfile và `.env.example` đã được dựng. Đây là **scaffold**, chưa phải
-stack đã triển khai: `apps/server/Dockerfile`, app server và route `/healthz` chưa
-có; các biến môi trường server trong Compose cần được C xác nhận theo hợp đồng v1.
+stack đã triển khai: server hiện có `/health` và cấu hình môi trường, nhưng
+`apps/server/Dockerfile` chưa có và hợp đồng v1 vẫn chờ review.
 Xem [bàn giao D](../docs/handoffs/D.md) và [yêu cầu hợp đồng D](../docs/handoffs/D-contract-requests.md).
 
 ## Yêu cầu
@@ -27,18 +27,33 @@ Xem [bàn giao D](../docs/handoffs/D.md) và [yêu cầu hợp đồng D](../doc
 2. Điền `DOMAIN`, `RELAY_HOST`, `RELAY_PASS`. Tạo relay password ngẫu nhiên đủ
    mạnh; không commit `.env` và không đưa password vào log.
 3. Nếu cần đổi cổng relay, đặt năm cổng liên tiếp trong `RELAY_PORT_1` …
-   `RELAY_PORT_5` và giữ `RELAY_PORTS` đồng nhất. Mở đúng các cổng TCP trên
-   firewall và cập nhật cùng giá trị vào cấu hình client/server.
-4. Sau khi server image/Dockerfile và hợp đồng biến môi trường có sẵn:
+   `RELAY_PORT_5`. Compose dùng cùng các giá trị cho relay và port mapping;
+   `RELAY_PORT_1` là cổng điều khiển trong `RELAY_ADDRESS` server trả cho client.
+   Mở đúng các cổng TCP trên firewall.
+4. Chọn `CADDY_PROXY_SUBNET` không trùng mạng Docker hoặc mạng host; đặt
+   `CADDY_PROXY_IP` là địa chỉ khả dụng trong subnet này. Compose gán IP đó cho
+   Caddy và cấu hình `TRUST_PROXY` chính xác bằng IP này, không tin toàn bộ subnet.
+   Kiểm tra cấu hình IP thực tế và quyền ghi `deploy/data` khi triển khai.
+5. Sau khi C cung cấp server Dockerfile tương thích workspace:
 
    ```powershell
-   docker compose config
+   docker compose config --quiet
    docker compose up -d --build
    docker compose ps
    ```
 
-5. Tạo tài khoản giảng viên bằng CLI trong container theo lệnh C công bố; chưa
-   có lệnh CLI được chốt trong repository.
+6. Tạo tài khoản giảng viên bằng CLI theo [`apps/server/README.md`](../apps/server/README.md).
+   Lệnh container cụ thể phụ thuộc working directory và nội dung image của C.
+   Không bật `DEV_FAKE_TRANSFERS` trên VPS.
+
+Không in hoặc chia sẻ đầu ra `docker compose config` thông thường: nó chứa mật
+khẩu sau khi nội suy. Dùng `--quiet` khi chỉ cần kiểm tra cú pháp.
+
+## Kiểm tra cấu hình
+
+Từ thư mục gốc repo, chạy `node --test tests/e2e/deploy.test.mjs`. Test gọi Docker
+Compose CLI với cấu hình và mật khẩu giả; không khởi động container hoặc kiểm
+chứng HTTPS, server, relay hay truyền file.
 
 ## Dữ liệu, sao lưu và cập nhật
 
@@ -55,6 +70,7 @@ Xem [bàn giao D](../docs/handoffs/D.md) và [yêu cầu hợp đồng D](../doc
   docker compose ps
   ```
 
-- Chưa kiểm thử backup/restore, nâng cấp, cấp chứng chỉ hoặc relay từ mạng trường.
+- Relay croc 10.7.0 đã được thử gửi/nhận file qua loopback trên Windows, không dùng
+  Docker; chưa kiểm thử backup/restore, nâng cấp, cấp chứng chỉ hoặc relay từ mạng trường.
   Cần kiểm tra TCP tới cả năm cổng từ mạng trường thật; mô phỏng local không thay
   thế phép thử này.
