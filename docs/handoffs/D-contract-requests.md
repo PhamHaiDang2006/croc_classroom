@@ -1,5 +1,10 @@
 # Yêu cầu hợp đồng của vai trò D
 
+> Cập nhật nhánh `codex/frontend` (2026-11-21): đã bổ sung kiểm tra/commit upload,
+> lock theo bài, dấu xoá bền vững và bảng GC, Dockerfile workspace và test deploy trong CI.
+> Xem phần cập nhật đầu `docs/contracts.md` và `docs/handoffs/A.md`.
+> Các nhận xét dưới đây mô tả baseline D; chính sách relay/hash/WS vẫn cần nhóm chốt.
+
 - Mốc: review đề xuất v1 sau khi tích hợp C/Backend
 - Trạng thái: đã đọc và nêu điểm cần làm rõ; chưa được C/B review hoặc chấp thuận
 - Phiên bản hợp đồng: v1 đề xuất, chưa được các bên sử dụng chốt

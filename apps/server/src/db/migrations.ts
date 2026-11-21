@@ -128,4 +128,16 @@ ALTER TABLE assignments ADD COLUMN storage_ref TEXT;
 CREATE INDEX participants_student ON participants (student_id);
 `,
   },
+  {
+    id: 3,
+    name: 'assignment-lifecycle-and-payload-cleanup',
+    sql: `
+ALTER TABLE assignments ADD COLUMN deleting INTEGER NOT NULL DEFAULT 0 CHECK (deleting IN (0, 1));
+CREATE TABLE payload_gc (
+  storage_ref TEXT PRIMARY KEY,
+  assignment_id TEXT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+  submission_id TEXT NOT NULL REFERENCES submissions(id) ON DELETE CASCADE
+);
+`,
+  },
 ];

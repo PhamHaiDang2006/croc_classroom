@@ -7,8 +7,9 @@ Thiết kế: mục 5, 7.1, 13 và 14 trong [system-design.md](../docs/system-de
 ## Trạng thái
 
 Compose, Caddyfile và `.env.example` đã được dựng. Đây là **scaffold**, chưa phải
-stack đã triển khai: server hiện có `/health` và cấu hình môi trường, nhưng
-`apps/server/Dockerfile` chưa có và hợp đồng v1 vẫn chờ review.
+stack đã triển khai. Nhánh frontend đã thêm `apps/server/Dockerfile` build từ gốc
+workspace, chạy bằng user `node` (UID/GID 1000). Hợp đồng vẫn chờ review nhóm.
+Image hiện chạy backend nghiệp vụ; worker và engine croc thật chưa được triển khai.
 Xem [bàn giao D](../docs/handoffs/D.md) và [yêu cầu hợp đồng D](../docs/handoffs/D-contract-requests.md).
 
 ## Yêu cầu
@@ -34,7 +35,14 @@ Xem [bàn giao D](../docs/handoffs/D.md) và [yêu cầu hợp đồng D](../doc
    `CADDY_PROXY_IP` là địa chỉ khả dụng trong subnet này. Compose gán IP đó cho
    Caddy và cấu hình `TRUST_PROXY` chính xác bằng IP này, không tin toàn bộ subnet.
    Kiểm tra cấu hình IP thực tế và quyền ghi `deploy/data` khi triển khai.
-5. Sau khi C cung cấp server Dockerfile tương thích workspace:
+5. Trên VPS Linux, tạo thư mục dữ liệu và cấp quyền cho UID/GID 1000 trước khi chạy
+   (chỉ áp dụng cho thư mục dữ liệu mới; kiểm tra ownership trước khi đổi thư mục đã có):
+
+   ```sh
+   sudo install -d -o 1000 -g 1000 ./data
+   ```
+
+   Build từ workspace qua Compose:
 
    ```powershell
    docker compose config --quiet
@@ -43,7 +51,8 @@ Xem [bàn giao D](../docs/handoffs/D.md) và [yêu cầu hợp đồng D](../doc
    ```
 
 6. Tạo tài khoản giảng viên bằng CLI theo [`apps/server/README.md`](../apps/server/README.md).
-   Lệnh container cụ thể phụ thuộc working directory và nội dung image của C.
+   `docker compose exec server node apps/server/dist/cli.js create-lecturer --username giangvien --full-name "Giảng viên"`
+   (CLI hỏi mật khẩu tương tác; cấu hình DATA_DIR dùng chung với server).
    Không bật `DEV_FAKE_TRANSFERS` trên VPS.
 
 Không in hoặc chia sẻ đầu ra `docker compose config` thông thường: nó chứa mật
@@ -66,7 +75,7 @@ chứng HTTPS, server, relay hay truyền file.
 
   ```powershell
   docker compose pull
-  docker compose up -d
+  docker compose up -d --build
   docker compose ps
   ```
 

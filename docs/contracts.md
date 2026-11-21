@@ -6,6 +6,28 @@ triển khai phần phụ thuộc vào một nhóm hợp đồng khi cột "Revi
 
 ## Phiên bản
 
+**Bản sửa tích hợp frontend 2026-11-21:** người dùng cho phép sửa C/D trên nhánh
+`codex/frontend`. REST/WS/IPC giữ version 1; interface nội bộ C–D thay đổi như dưới.
+Đây không phải xác nhận rằng các thành viên C/D/B đã review.
+
+- `onUploadStored` trả `UploadCommitResult`: kiểm vé đúng loại/bài, trạng thái và hạn;
+  commit bài + vé nguyên tử; retry trả `storageRef` đã lưu. D chỉ phát WS/holdings khi accepted.
+- C đồng bộ create/renew/delete/submit/collect và callback bằng `withAssignmentLock`
+  theo bài, dùng cùng một Db trong một tiến trình server. D không lấy lại lock bên
+  trong open/purge do C gọi và không chờ callback ngay trong open/purge (tránh deadlock).
+  Fetch và cleanup do D khởi tạo phải dùng lock này và `requireAvailableAssignment`.
+- Migration 3 thêm `assignments.deleting`: lưu trước purge. Purge lỗi/restart vẫn chặn
+  join, mở vé và commit mới; gọi lại DELETE để tiếp tục dọn, không tự mở bài trở lại.
+- `openCollect` phải ghi vé đang hoạt động trước khi trả về. Commit phiên bản mới ghi
+  `payload_gc` trước khi bỏ storage_ref cũ. D dùng `pendingPayloadCleanup` dưới cùng lock,
+  xoá file rồi mới xoá dòng GC; nếu crash thì retry xoá file phải vô hại. Không chỉ dựa
+  trên `supersededStorageRefs` trong RAM. Vé đang thu giữ file sống đến khi kết thúc.
+- `onCollectConfirmed` kiểm vé/version/hạn và C kết thúc vé nguyên tử; D đọc lại vé
+  để biết callback được chấp nhận trước khi phát sự kiện. Upload/submission kiểm hạn
+  ngay tại commit, không chỉ trông chờ vòng quét timeout của D.
+- Sau restart D vẫn phải huỷ vé chưa kết thúc, tiếp tục các bài `deleting = 1`, dọn
+  hàng đợi GC và orphan payload chưa commit. Worker thực tế chưa được triển khai.
+
 | Phiên bản | Ngày | Branch / PR | Nội dung | Trạng thái |
 |---|---|---|---|---|
 | v1 (đề xuất) | 2026-11-17 | `C/Backend` | Bản đầu cho REST, WS, IPC, engine, vé/worker, dữ liệu, manifest | Chờ review |

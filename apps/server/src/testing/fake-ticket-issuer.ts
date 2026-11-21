@@ -112,7 +112,6 @@ export class FakeTicketIssuer implements TicketIssuer {
         });
       } else {
         void auto.handler.onCollectConfirmed({ ticketId: ticket.ticketId, submissionId: request.submissionId, confirmedAt: at });
-        this.db?.prepare(`UPDATE tickets SET status = 'xong', finished_at = ? WHERE id = ?`).run(at, ticket.ticketId);
       }
     }, auto.delayMs);
   }

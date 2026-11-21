@@ -30,7 +30,8 @@ async function createAssignment(gv: string, body: Record<string, unknown> = {}) 
 /** Giả lập worker của D báo đã nhận và xác minh đề. */
 async function publish(assignmentId: string) {
   await h.assignments.service.onUploadStored({
-    ticketId: h.issuer.issued.at(-1)?.ticketId ?? '00000000-0000-4000-8000-00000000f001',
+    ticketId: h.issuer.issued.findLast((ticket) => ticket.assignmentId === assignmentId && ticket.kind === 'gv_tai_len')?.ticketId
+      ?? '00000000-0000-4000-8000-00000000f001',
     assignmentId,
     storageRef: `assignments/${assignmentId}/payload`,
     verifiedAt: h.clock.now().toISOString(),

@@ -1,5 +1,8 @@
 # Bàn giao vai trò D
 
+> Baseline bàn giao D trước bản sửa tích hợp frontend. Nhánh frontend đã thêm Dockerfile,
+> thay build context và sửa lifecycle C–D; xem `A.md` để biết kết quả kiểm chứng mới.
+
 - Mốc: M0 — review v1, deploy scaffold và chuẩn bị kiểm thử
 - Branch / commit hoặc PR: `D_role`, dựa trên merge `8ece671`; thay đổi mới chưa commit
 - Phiên bản hợp đồng đang sử dụng: v1 đề xuất của C, chưa được các bên review/chốt

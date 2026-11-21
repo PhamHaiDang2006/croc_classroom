@@ -24,7 +24,7 @@ describe('migration', () => {
       .prepare(`SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name`)
       .all()
       .map((r) => (r as { name: string }).name);
-    expect(tables).toEqual(['assignments', 'holdings', 'participants', 'sessions', 'submissions', 'tickets', 'users']);
+    expect(tables).toEqual(['assignments', 'holdings', 'participants', 'payload_gc', 'sessions', 'submissions', 'tickets', 'users']);
   });
 
   it('chạy lại không làm gì; từ chối CSDL mới hơn mã nguồn', () => {
@@ -33,6 +33,27 @@ describe('migration', () => {
     expect(migrate(db)).toEqual([]);
     db.pragma('user_version = 999');
     expect(() => migrate(db)).toThrow(/mới hơn/);
+  });
+
+  it('nâng từ schema 2 giữ dữ liệu và lưu dấu xoá qua lần mở lại', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'croc-migration-'));
+    const path = join(dir, 'test.sqlite');
+    let db = openDatabase(path);
+    try {
+      migrate(db, migrations.filter((m) => m.id <= 2));
+      db.prepare(`INSERT INTO assignments (id, title, code_phrase, status, manifest_json, total_size, file_count, created_at)
+        VALUES ('a', 'Bài cũ', 'sao-mai-xanh-042', 'dang_tai_len', '{}', 1, 1, ?)`).run(now);
+      expect(migrate(db)).toEqual([3]);
+      expect(db.prepare('SELECT title, deleting FROM assignments').get()).toEqual({ title: 'Bài cũ', deleting: 0 });
+      db.prepare('UPDATE assignments SET deleting = 1').run();
+      db.close();
+      db = openDatabase(path);
+      expect(migrate(db)).toEqual([]);
+      expect(db.prepare('SELECT deleting FROM assignments').get()).toEqual({ deleting: 1 });
+    } finally {
+      if (db.open) db.close();
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it('bật WAL và khoá ngoại với file thật', async () => {

@@ -140,6 +140,20 @@ thay đổi các yêu cầu đã chốt ở đó.
   `NOT_PARTICIPANT` (theo hợp đồng; ID bài là UUID không đoán được).
 - `DEV_FAKE_TRANSFERS=true` giờ tự hoàn tất cả tải đề, nộp bài và thu bài (không truyền file).
 
+### D-010 — Sửa tích hợp trên nhánh frontend
+
+- 2026-11-21: người dùng giao tạo nhánh frontend chứa C/D và sửa vấn đề tích hợp.
+- Dùng `codex/frontend` từ `origin/D_role@7812ecd`, đã chứa `C/Backend@1e0ab59`.
+- Backend đơn tiến trình dùng lock theo bài trên cùng Db; không giữ transaction SQLite
+  qua await. Issuer trả sau khi đăng ký vé, không chờ callback hoàn thành.
+- Migration 3 giữ dấu xoá và hàng đợi dọn payload qua restart. Phần worker tương lai phải
+  sử dụng gate/GC chung; không tuyên bố đã có truyền file hoặc phục hồi filesystem thật.
+- Callback upload trả kết quả chấp nhận và ref đã commit; callback thu kiểm vé và kết thúc
+  vé trong transaction. REST/WS/IPC không đổi hình dạng; interface nội bộ C–D có thay đổi.
+- Docker build context là gốc workspace; runtime user UID 1000. CI thêm test Compose/build image.
+- Chưa thay chính sách báo sai hash, mật khẩu relay hoặc reconnect chưa có consumer thật.
+- Chưa có review của thành viên C/D/B; cần đọc bản sửa này trước khi tích hợp worker.
+
 ## Mẫu ghi một quyết định
 
 - Mã / ngày / trạng thái: đề xuất, đã thống nhất hoặc thay thế.

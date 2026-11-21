@@ -22,7 +22,8 @@ import { appError } from '../http/errors.js';
 import { ipBucket, type FailureLimiter } from '../http/rate-limit.js';
 import type { Clock } from '../ports/clock.js';
 import type { SeedingStats } from '../ports/seeding.js';
-import type { TicketIssuer, TransferOutcomeHandler } from '../ports/transfers.js';
+import type { TicketIssuer, TransferOutcomeHandler, UploadCommitResult } from '../ports/transfers.js';
+import { assignmentAvailable, requireAvailableAssignment, withAssignmentLock } from '../ports/assignment-lifecycle.js';
 import { latestReceipt } from '../submissions/queries.js';
 
 interface AssignmentRow {
@@ -77,46 +78,51 @@ export class AssignmentsService implements AssignmentOutcomes {
     this.assertManifestWithinLimits(manifest);
 
     const id = randomUUID();
-    const totalBytes = manifestTotalSize(manifest);
-    this.db
-      .prepare(
-        `INSERT INTO assignments (id, title, description, code_phrase, deadline_at, status, manifest_json, total_size, file_count, created_at)
-         VALUES (?, ?, ?, ?, ?, 'dang_tai_len', ?, ?, ?, ?)`,
-      )
-      .run(
-        id,
-        request.title,
-        request.description,
-        this.uniqueCodePhrase(),
-        request.deadlineAt,
-        JSON.stringify(manifest),
-        totalBytes,
-        manifest.files.length,
-        this.deps.clock.now().toISOString(),
-      );
+    return withAssignmentLock(this.db, id, async () => {
+      const totalBytes = manifestTotalSize(manifest);
+      this.db
+        .prepare(
+          `INSERT INTO assignments (id, title, description, code_phrase, deadline_at, status, manifest_json, total_size, file_count, created_at)
+           VALUES (?, ?, ?, ?, ?, 'dang_tai_len', ?, ?, ?, ?)`,
+        )
+        .run(
+          id,
+          request.title,
+          request.description,
+          this.uniqueCodePhrase(),
+          request.deadlineAt,
+          JSON.stringify(manifest),
+          totalBytes,
+          manifest.files.length,
+          this.deps.clock.now().toISOString(),
+        );
 
-    let ticket: IssuedTicket;
-    try {
-      ticket = await this.deps.tickets.openUpload({ assignmentId: id, lecturerId, manifest, totalBytes });
-    } catch (error) {
-      // Không mở được vé (VPS hết chỗ…): không để lại bài không thể tải lên.
-      this.db.prepare('DELETE FROM assignments WHERE id = ?').run(id);
-      throw error;
-    }
-    return { assignment: this.toLecturerAssignment(this.requireRow(id)), ticket };
+      let ticket: IssuedTicket;
+      try {
+        ticket = await this.deps.tickets.openUpload({ assignmentId: id, lecturerId, manifest, totalBytes });
+      } catch (error) {
+        // Không mở được vé (VPS hết chỗ…): không để lại bài không thể tải lên.
+        this.db.prepare('DELETE FROM assignments WHERE id = ?').run(id);
+        throw error;
+      }
+      return { assignment: this.toLecturerAssignment(this.requireRow(id)), ticket };
+    });
   }
 
   async renewUploadTicket(lecturerId: string, assignmentId: string): Promise<{ ticket: IssuedTicket }> {
-    const row = this.requireRow(assignmentId);
-    if (row.status === 'da_phat_hanh') throw appError('ASSIGNMENT_ALREADY_PUBLISHED');
-    const manifest = parseManifest(row.manifest_json);
-    const ticket = await this.deps.tickets.openUpload({
-      assignmentId,
-      lecturerId,
-      manifest,
-      totalBytes: row.total_size,
+    return withAssignmentLock(this.db, assignmentId, async () => {
+      requireAvailableAssignment(this.db, assignmentId);
+      const row = this.requireRow(assignmentId);
+      if (row.status === 'da_phat_hanh') throw appError('ASSIGNMENT_ALREADY_PUBLISHED');
+      const manifest = parseManifest(row.manifest_json);
+      const ticket = await this.deps.tickets.openUpload({
+        assignmentId,
+        lecturerId,
+        manifest,
+        totalBytes: row.total_size,
+      });
+      return { ticket };
     });
-    return { ticket };
   }
 
   list(): LecturerAssignment[] {
@@ -144,9 +150,13 @@ export class AssignmentsService implements AssignmentOutcomes {
    * participants, holdings, submissions, tickets). D lỗi thì giữ nguyên bài để GV xoá lại.
    */
   async delete(assignmentId: string): Promise<void> {
-    this.requireRow(assignmentId);
-    await this.deps.tickets.purgeAssignment(assignmentId);
-    this.db.prepare('DELETE FROM assignments WHERE id = ?').run(assignmentId);
+    return withAssignmentLock(this.db, assignmentId, async () => {
+      this.requireRow(assignmentId);
+      // Persist before filesystem work: after a failure/restart only retry DELETE is allowed.
+      this.db.prepare('UPDATE assignments SET deleting = 1 WHERE id = ?').run(assignmentId);
+      await this.deps.tickets.purgeAssignment(assignmentId);
+      this.db.prepare('DELETE FROM assignments WHERE id = ?').run(assignmentId);
+    });
   }
 
   // ------------------------------------------------------------ sinh viên
@@ -156,7 +166,7 @@ export class AssignmentsService implements AssignmentOutcomes {
     this.deps.joinLimiter.assertAllowed(key);
 
     const row = this.db
-      .prepare(`SELECT * FROM assignments WHERE code_phrase = ? AND status = 'da_phat_hanh'`)
+      .prepare(`SELECT * FROM assignments WHERE code_phrase = ? AND status = 'da_phat_hanh' AND deleting = 0`)
       .get(codePhrase) as AssignmentRow | undefined;
     if (!row) {
       this.deps.joinLimiter.recordFailure(key);
@@ -200,13 +210,25 @@ export class AssignmentsService implements AssignmentOutcomes {
 
   // ------------------------------------------------------------ kết quả truyền file (D gọi)
 
-  async onUploadStored(event: { ticketId: string; assignmentId: string; storageRef: string; verifiedAt: string }): Promise<void> {
-    this.db
-      .prepare(
-        `UPDATE assignments SET status = 'da_phat_hanh', published_at = ?, storage_ref = ?
-         WHERE id = ? AND status = 'dang_tai_len'`,
-      )
-      .run(event.verifiedAt, event.storageRef, event.assignmentId);
+  async onUploadStored(event: { ticketId: string; assignmentId: string; storageRef: string; verifiedAt: string }): Promise<UploadCommitResult> {
+    return withAssignmentLock(this.db, event.assignmentId, async () => this.db.transaction((): UploadCommitResult => {
+      const rejected = { accepted: false, reason: 'ticket_not_active' } as const;
+      if (!assignmentAvailable(this.db, event.assignmentId)) return rejected;
+      const ticket = this.db.prepare('SELECT kind, assignment_id, status, expires_at FROM tickets WHERE id = ?')
+        .get(event.ticketId) as { kind: string; assignment_id: string; status: string; expires_at: string } | undefined;
+      if (!ticket || ticket.kind !== 'gv_tai_len' || ticket.assignment_id !== event.assignmentId) return rejected;
+      const row = this.requireRow(event.assignmentId);
+      if (ticket.status === 'xong' && row.status === 'da_phat_hanh' && row.storage_ref) {
+        return { accepted: true, alreadyCommitted: true, storageRef: row.storage_ref };
+      }
+      if (ticket.status !== 'dang_chay' || Date.parse(ticket.expires_at) <= this.deps.clock.now().getTime()
+        || row.status !== 'dang_tai_len') return rejected;
+      this.db.prepare(`UPDATE assignments SET status = 'da_phat_hanh', published_at = ?, storage_ref = ? WHERE id = ?`)
+        .run(event.verifiedAt, event.storageRef, event.assignmentId);
+      this.db.prepare(`UPDATE tickets SET status = 'xong', finished_at = ? WHERE id = ?`)
+        .run(this.deps.clock.now().toISOString(), event.ticketId);
+      return { accepted: true, alreadyCommitted: false, storageRef: event.storageRef };
+    })());
   }
 
   async onFetchVerified(event: {

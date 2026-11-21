@@ -14,6 +14,10 @@ import type { IssuedTicket, Manifest, Receipt } from '@croc-classroom/shared';
  *   Mở vé mới thì vé cũ cùng khoá chuyển `huy` với lý do `superseded`. (GV thu nhiều bài nộp của cùng một
  *   bài song song được vì khoá của gv_thu_bai là phiên bản bài nộp.)
  * - Hết chỗ trong bể tiến trình VPS: ném AppError('CAPACITY_EXHAUSTED', …, { retryAfterSeconds }).
+ * - C holds withAssignmentLock while calling open methods or purge. These methods must return after
+ *   reserving/cancelling work, not await outcomes (which acquire the same lock).
+ * - D's fetch and garbage collection must use this same per-assignment lock and check deleting.
+ * - openCollect must persist its active ticket before returning, pinning that submission's files.
  */
 export interface TicketIssuer {
   /** gv_tai_len: VPS mở croc nhận vào thư mục tạm; trả vé cho GV gửi đề. */
@@ -40,6 +44,10 @@ export interface TicketIssuer {
   purgeAssignment(assignmentId: string): Promise<void>;
 }
 
+export type UploadCommitResult =
+  | { accepted: true; alreadyCommitted: boolean; storageRef: string }
+  | { accepted: false; reason: 'ticket_not_active' };
+
 export type SubmissionCommitResult =
   | {
       accepted: true;
@@ -56,11 +64,11 @@ export type SubmissionCommitResult =
 /** C triển khai; D (worker/dịch vụ vé) gọi khi một lượt truyền kết thúc. */
 export interface TransferOutcomeHandler {
   /**
-   * Worker đã nhận đủ đề và xác minh theo manifest, đã chuyển vào kho tại `storageRef`. C chuyển bài sang
-   * `da_phat_hanh` (gọi lặp thì không làm gì; bài đã bị xoá thì bỏ qua). Sau khi hàm trả về, D gửi WS
-   * `assignment.published` cho GV và ghi `holdings` cho GV (GV là seeder của bài).
+   * Worker đã nhận đủ đề, xác minh và lưu vào kho. C kiểm tra vé đúng bài/loại, còn hoạt động và
+   * chưa hết hạn; phát hành và kết thúc vé trong một transaction. Chỉ accepted mới được phát WS/holdings.
+   * Gọi lặp trả storageRef đã commit; không xoá ref đó. Kết quả bị từ chối: dọn payload riêng của vé.
    */
-  onUploadStored(event: { ticketId: string; assignmentId: string; storageRef: string; verifiedAt: string }): Promise<void>;
+  onUploadStored(event: { ticketId: string; assignmentId: string; storageRef: string; verifiedAt: string }): Promise<UploadCommitResult>;
 
   /**
    * SV (bên nhận vé `phat_de`) đã báo xác minh xong đề. C ghi `participants.received_at/received_from`
@@ -96,7 +104,8 @@ export interface TransferOutcomeHandler {
 
   /**
    * GV (bên nhận vé gv_thu_bai) báo đã tải về và xác minh. C ghi `collected_at` cho đúng phiên bản
-   * (lần đầu; báo lại không ghi đè). D chuyển vé sang `xong`.
+   * (lần đầu; báo lại không ghi đè). C kiểm tra vé và chuyển sang `xong` trong cùng transaction.
+   * D đọc lại trạng thái vé trước khi gửi WS; callback void không tự chứng minh kết quả được chấp nhận.
    */
   onCollectConfirmed(event: { ticketId: string; submissionId: string; confirmedAt: string }): Promise<void>;
 }

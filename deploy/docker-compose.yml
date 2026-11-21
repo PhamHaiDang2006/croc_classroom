@@ -28,8 +28,8 @@ services:
   server:
     image: ${SERVER_IMAGE:-crocpro-server:local}
     build:
-      context: ../apps/server
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: apps/server/Dockerfile
     restart: unless-stopped
     environment:
       NODE_ENV: production

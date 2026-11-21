@@ -11,6 +11,8 @@ riêng đặt trên VPS. Sinh viên đã nhận đề sẽ tự chia sẻ lại 
 ## Tài liệu
 
 - **[Thiết kế hệ thống](docs/system-design.md)**: yêu cầu, các phương án đã cân nhắc, kiến trúc, các luồng nghiệp vụ, bảo mật, dữ liệu, API, rủi ro.
+- **[Bàn giao frontend và bản sửa tích hợp C–D](docs/handoffs/A.md)**: nhánh `codex/frontend`
+  chứa cả C/Backend và D_role; sửa lifecycle/triển khai trước khi xây dựng giao diện.
 
 ## Làm việc nhóm 4 người với AI
 

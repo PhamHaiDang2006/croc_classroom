@@ -35,6 +35,8 @@ function config(overrides = {}) {
 test('Compose uses server config names, health endpoint and one trusted proxy address', () => {
   const resolved = config();
   const server = resolved.services.server;
+  assert.equal(server.build.context.replaceAll('\\', '/'), fileURLToPath(new URL('../../', import.meta.url)).replaceAll('\\', '/').replace(/\/$/, ''));
+  assert.equal(server.build.dockerfile, 'apps/server/Dockerfile');
   assert.equal(server.environment.RELAY_ADDRESS, 'relay.example.test:19009');
   assert.equal(server.environment.LIMIT_MAX_ASSIGNMENT_BYTES, '123456');
   assert.equal(server.environment.LIMIT_VPS_TRANSFER_SLOTS, '3');

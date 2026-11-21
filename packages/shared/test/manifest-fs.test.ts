@@ -42,14 +42,25 @@ describe('computeManifest', () => {
     expect(manifest.files[0]?.path).toBe('Bài làm.txt'.normalize('NFC'));
   });
 
-  it('từ chối symlink', async () => {
+  it('từ chối symlink', async (context) => {
     await write('that.txt', 'x');
-    await symlink(join(root, 'that.txt'), join(root, 'lien-ket.txt'));
+    try {
+      await symlink(join(root, 'that.txt'), join(root, 'lien-ket.txt'));
+    } catch (error) {
+      if (process.platform === 'win32' && (error as NodeJS.ErrnoException).code === 'EPERM') {
+        context.skip('Windows chưa cấp quyền tạo symlink; kiểm tra này vẫn chạy trên Linux CI');
+        return;
+      }
+      throw error;
+    }
     await expect(computeManifest(root)).rejects.toMatchObject({ code: 'SYMLINK_NOT_ALLOWED' });
   });
 
-  it('từ chối thư mục rỗng và tên file không hợp lệ', async () => {
+  it('từ chối thư mục rỗng', async () => {
     await expect(computeManifest(root)).rejects.toBeInstanceOf(ManifestError);
+  });
+
+  it.skipIf(process.platform === 'win32')('từ chối tên file không hợp lệ (Windows không cho tạo fixture chứa ?)', async () => {
     await write('bai?.txt', 'x');
     await expect(computeManifest(root)).rejects.toMatchObject({ code: 'INVALID_PATH' });
   });
@@ -101,9 +112,17 @@ describe('verifyDirectory', () => {
     expect(result).toEqual({ ok: false, problems: [{ kind: 'size_mismatch', path: 'a.txt', expected: 3, actual: 7 }] });
   });
 
-  it('coi symlink trong thư mục nhận là không hợp lệ', async () => {
+  it('coi symlink trong thư mục nhận là không hợp lệ', async (context) => {
     const manifest = await computeManifest(root);
-    await symlink('/etc/hostname', join(root, 'lien-ket'));
+    try {
+      await symlink(join(root, 'a.txt'), join(root, 'lien-ket'));
+    } catch (error) {
+      if (process.platform === 'win32' && (error as NodeJS.ErrnoException).code === 'EPERM') {
+        context.skip('Windows chưa cấp quyền tạo symlink; kiểm tra này vẫn chạy trên Linux CI');
+        return;
+      }
+      throw error;
+    }
     const result = await verifyDirectory(root, manifest);
     expect(result).toEqual({ ok: false, problems: [{ kind: 'not_regular_file', path: 'lien-ket' }] });
   });

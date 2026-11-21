@@ -16,6 +16,7 @@ import { appError } from '../http/errors.js';
 import type { Clock } from '../ports/clock.js';
 import type { SubmissionCommitResult, TicketIssuer, TransferOutcomeHandler } from '../ports/transfers.js';
 import { latestReceipt, toReceipt, type SubmissionRow } from './queries.js';
+import { assignmentAvailable, requireAvailableAssignment, withAssignmentLock } from '../ports/assignment-lifecycle.js';
 
 export interface SubmissionsServiceDeps {
   db: Db;
@@ -41,6 +42,7 @@ interface TicketRow {
   sender_user_id: string | null;
   status: string;
   submission_id: string | null;
+  expires_at: string;
 }
 
 export class SubmissionsService implements SubmissionOutcomes {
@@ -54,25 +56,28 @@ export class SubmissionsService implements SubmissionOutcomes {
 
   /** Xin vé nộp bài (system-design mục 7.5). Biên nhận có khi worker xác minh xong (onSubmissionStored). */
   async submit(studentId: string, assignmentId: string, manifest: Manifest): Promise<{ ticket: IssuedTicket }> {
-    this.requireAssignment(assignmentId);
-    if (!this.isParticipant(assignmentId, studentId)) throw appError('NOT_PARTICIPANT');
+    return withAssignmentLock(this.db, assignmentId, async () => {
+      requireAvailableAssignment(this.db, assignmentId);
+      this.requireAssignment(assignmentId);
+      if (!this.isParticipant(assignmentId, studentId)) throw appError('NOT_PARTICIPANT');
 
-    const problems = checkManifestLimits(manifest, {
-      maxFiles: this.deps.limits.maxManifestFiles,
-      maxBytes: this.deps.limits.maxSubmissionBytes,
-    });
-    const tooLarge = problems.find((p) => p.code === 'too_large');
-    if (tooLarge) throw appError('PAYLOAD_TOO_LARGE', tooLarge.message);
-    const tooMany = problems.find((p) => p.code === 'too_many_files');
-    if (tooMany) throw appError('MANIFEST_INVALID', tooMany.message);
+      const problems = checkManifestLimits(manifest, {
+        maxFiles: this.deps.limits.maxManifestFiles,
+        maxBytes: this.deps.limits.maxSubmissionBytes,
+      });
+      const tooLarge = problems.find((p) => p.code === 'too_large');
+      if (tooLarge) throw appError('PAYLOAD_TOO_LARGE', tooLarge.message);
+      const tooMany = problems.find((p) => p.code === 'too_many_files');
+      if (tooMany) throw appError('MANIFEST_INVALID', tooMany.message);
 
-    const ticket = await this.deps.tickets.openSubmission({
-      assignmentId,
-      studentId,
-      manifest,
-      totalBytes: manifestTotalSize(manifest),
+      const ticket = await this.deps.tickets.openSubmission({
+        assignmentId,
+        studentId,
+        manifest,
+        totalBytes: manifestTotalSize(manifest),
+      });
+      return { ticket };
     });
-    return { ticket };
   }
 
   /** Biên nhận mới nhất của chính SV (dùng sau khi mất kết nối). Chưa tham gia / chưa nộp → NOT_FOUND. */
@@ -121,34 +126,39 @@ export class SubmissionsService implements SubmissionOutcomes {
 
   /** Mở vé gv_thu_bai cho đúng phiên bản `submissionId`; phiên bản đã bị thay → SUBMISSION_SUPERSEDED. */
   async collect(lecturerId: string, submissionId: string): Promise<CollectTicket> {
-    const row = this.db.prepare('SELECT * FROM submissions WHERE id = ?').get(submissionId) as SubmissionRow | undefined;
-    if (!row) throw appError('NOT_FOUND', 'Không tìm thấy bài nộp');
-    const latest = this.latestRow(row.assignment_id, row.student_id)!;
-    if (latest.id !== row.id || !row.storage_ref) throw appError('SUBMISSION_SUPERSEDED');
+    const ref = this.db.prepare('SELECT assignment_id FROM submissions WHERE id = ?').get(submissionId) as { assignment_id: string } | undefined;
+    if (!ref) throw appError('NOT_FOUND');
+    return withAssignmentLock(this.db, ref.assignment_id, async () => {
+      requireAvailableAssignment(this.db, ref.assignment_id);
+      const row = this.db.prepare('SELECT * FROM submissions WHERE id = ?').get(submissionId) as SubmissionRow | undefined;
+      if (!row) throw appError('NOT_FOUND', 'Không tìm thấy bài nộp');
+      const latest = this.latestRow(row.assignment_id, row.student_id)!;
+      if (latest.id !== row.id || !row.storage_ref) throw appError('SUBMISSION_SUPERSEDED');
 
-    const manifest = ManifestSchema.parse(JSON.parse(row.manifest_json));
-    const ticket = await this.deps.tickets.openCollect({
-      assignmentId: row.assignment_id,
-      submissionId: row.id,
-      lecturerId,
-      storageRef: row.storage_ref,
-      manifest,
-      totalBytes: row.total_size,
-    });
-    const student = this.db
-      .prepare('SELECT id, mssv, full_name, class_label FROM users WHERE id = ?')
-      .get(row.student_id) as StudentRefRow;
-    return {
-      ticket,
-      submission: {
-        submissionId: row.id,
+      const manifest = ManifestSchema.parse(JSON.parse(row.manifest_json));
+      const ticket = await this.deps.tickets.openCollect({
         assignmentId: row.assignment_id,
-        student: { id: student.id, mssv: student.mssv, fullName: student.full_name, classLabel: student.class_label },
-        version: row.version,
+        submissionId: row.id,
+        lecturerId,
+        storageRef: row.storage_ref,
         manifest,
-        manifestHash: row.manifest_hash,
-      },
-    };
+        totalBytes: row.total_size,
+      });
+      const student = this.db
+        .prepare('SELECT id, mssv, full_name, class_label FROM users WHERE id = ?')
+        .get(row.student_id) as StudentRefRow;
+      return {
+        ticket,
+        submission: {
+          submissionId: row.id,
+          assignmentId: row.assignment_id,
+          student: { id: student.id, mssv: student.mssv, fullName: student.full_name, classLabel: student.class_label },
+          version: row.version,
+          manifest,
+          manifestHash: row.manifest_hash,
+        },
+      };
+    });
   }
 
   // ------------------------------------------------------------ kết quả truyền file (D gọi)
@@ -161,7 +171,8 @@ export class SubmissionsService implements SubmissionOutcomes {
     storageRef: string;
     verifiedAt: string;
   }): Promise<SubmissionCommitResult> {
-    return this.db.transaction((): SubmissionCommitResult => {
+    return withAssignmentLock(this.db, event.assignmentId, async () => this.db.transaction((): SubmissionCommitResult => {
+      if (!assignmentAvailable(this.db, event.assignmentId)) return { accepted: false, reason: 'ticket_not_active' };
       const ticket = this.db.prepare('SELECT * FROM tickets WHERE id = ?').get(event.ticketId) as TicketRow | undefined;
       const matches =
         ticket !== undefined &&
@@ -175,7 +186,9 @@ export class SubmissionsService implements SubmissionOutcomes {
         const committed = this.db.prepare('SELECT * FROM submissions WHERE id = ?').get(ticket.submission_id) as SubmissionRow | undefined;
         if (committed) return { accepted: true, receipt: toReceipt(committed), supersededStorageRefs: [] };
       }
-      if (ticket.status !== 'dang_chay') return { accepted: false, reason: 'ticket_not_active' };
+      if (ticket.status !== 'dang_chay' || Date.parse(ticket.expires_at) <= this.deps.clock.now().getTime()) {
+        return { accepted: false, reason: 'ticket_not_active' };
+      }
 
       const assignment = this.db.prepare('SELECT deadline_at FROM assignments WHERE id = ?').get(event.assignmentId) as
         | { deadline_at: string | null }
@@ -204,6 +217,11 @@ export class SubmissionsService implements SubmissionOutcomes {
         storage_ref: event.storageRef,
         collected_at: null,
       };
+      // Durable cleanup outbox: callback retries must not lose retired storage references.
+      this.db.prepare(`INSERT OR IGNORE INTO payload_gc (storage_ref, assignment_id, submission_id)
+        SELECT storage_ref, assignment_id, id FROM submissions
+        WHERE assignment_id = ? AND student_id = ? AND storage_ref IS NOT NULL`)
+        .run(event.assignmentId, event.studentId);
       this.db
         .prepare('UPDATE submissions SET storage_ref = NULL WHERE assignment_id = ? AND student_id = ?')
         .run(event.assignmentId, event.studentId);
@@ -220,13 +238,25 @@ export class SubmissionsService implements SubmissionOutcomes {
         .run(this.deps.clock.now().toISOString(), row.id, event.ticketId);
 
       return { accepted: true, receipt: toReceipt(row), supersededStorageRefs: superseded };
-    })();
+    })());
   }
 
   async onCollectConfirmed(event: { ticketId: string; submissionId: string; confirmedAt: string }): Promise<void> {
-    this.db
-      .prepare('UPDATE submissions SET collected_at = ? WHERE id = ? AND collected_at IS NULL')
-      .run(event.confirmedAt, event.submissionId);
+    const ref = this.db.prepare('SELECT assignment_id FROM submissions WHERE id = ?').get(event.submissionId) as { assignment_id: string } | undefined;
+    if (!ref) return;
+    await withAssignmentLock(this.db, ref.assignment_id, async () => {
+      if (!assignmentAvailable(this.db, ref.assignment_id)) return;
+      this.db.transaction(() => {
+        const ticket = this.db.prepare('SELECT * FROM tickets WHERE id = ?').get(event.ticketId) as TicketRow | undefined;
+        if (!ticket || ticket.kind !== 'gv_thu_bai' || ticket.submission_id !== event.submissionId
+          || ticket.assignment_id !== ref.assignment_id || ticket.status !== 'dang_chay'
+          || Date.parse(ticket.expires_at) <= this.deps.clock.now().getTime()) return;
+        this.db.prepare('UPDATE submissions SET collected_at = ? WHERE id = ? AND collected_at IS NULL')
+          .run(event.confirmedAt, event.submissionId);
+        this.db.prepare(`UPDATE tickets SET status = 'xong', finished_at = ? WHERE id = ?`)
+          .run(this.deps.clock.now().toISOString(), event.ticketId);
+      })();
+    });
   }
 
   // ------------------------------------------------------------ tiện ích
