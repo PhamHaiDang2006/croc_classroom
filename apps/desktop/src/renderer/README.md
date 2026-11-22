@@ -4,6 +4,13 @@ Giao diện React, viết bằng tiếng Việt. Giao diện chỉ gọi API do 
 
 Thiết kế: mục 7 trong [system-design.md](../../../../docs/system-design.md).
 
+## Bản giao diện đầu tiên
+
+Đã có giao diện React chạy bằng Vite. Xem [hướng dẫn](../../../../docs/frontend.md).
+`App.tsx` chứa các màn hình, `api.ts` chọn preload hoặc mock có chủ đích, `styles.css`
+là bộ quy tắc giao diện. Kiểu dữ liệu lấy từ shared, không tự định nghĩa DTO.
+Checklist dưới là phạm vi mục tiêu; kết quả test/giới hạn được ghi trong bàn giao A.
+
 ## Việc cần làm
 
 **Màn hình chung**

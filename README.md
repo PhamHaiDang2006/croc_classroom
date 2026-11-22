@@ -1,7 +1,7 @@
 # croc-classroom — Giao–Nộp bài tập qua croc
 
 > Tên dự án tạm. Trạng thái: **phía server của C xong M0 (hợp đồng v1 chờ review), M1 (tài khoản),
-> M2 (bài tập, `/join`), M3 (nộp bài, biên nhận, thu bài). Chưa có truyền file thật (D), app desktop (A, B),
+> M2 (bài tập, `/join`), M3 (nộp bài, biên nhận, thu bài). Có frontend React với mock IPC; chưa có truyền file thật (D), Electron main/preload (B),
 > engine croc thật (B).**
 
 Ứng dụng desktop (Electron) giúp **một giảng viên** giao bài cho sinh viên bằng **một code phrase duy nhất**
@@ -9,6 +9,8 @@ và nhận bài nộp. File được truyền bằng [croc](https://github.com/s
 riêng đặt trên VPS. Sinh viên đã nhận đề sẽ tự chia sẻ lại cho bạn **cùng mạng LAN**.
 
 ## Tài liệu
+
+- **[Chạy frontend](docs/frontend.md)**: `npm run dev -w @croc-classroom/desktop`, mở `http://127.0.0.1:5173`.
 
 - **[Thiết kế hệ thống](docs/system-design.md)**: yêu cầu, các phương án đã cân nhắc, kiến trúc, các luồng nghiệp vụ, bảo mật, dữ liệu, API, rủi ro.
 - **[Bàn giao frontend và bản sửa tích hợp C–D](docs/handoffs/A.md)**: nhánh `codex/frontend`

@@ -19,5 +19,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:ui -w @croc-classroom/desktop
       - run: node --test tests/e2e/deploy.test.mjs
       - run: docker build -f apps/server/Dockerfile -t croc-classroom-server:ci .

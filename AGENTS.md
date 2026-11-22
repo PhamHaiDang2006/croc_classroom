@@ -3,7 +3,8 @@
 ## Trạng thái và nguồn tham chiếu
 
 Repository: có workspace, hợp đồng v1 trong `packages/shared` (chờ review), server có module tài khoản
-(M1), bài tập (M2), bài nộp (M3). Chưa có truyền file thật, app desktop hay engine croc thật.
+(M1), bài tập (M2), bài nộp (M3). Có React renderer/Vite preview với mock IPC (A).
+Chưa có truyền file thật, Electron main/preload hay engine croc thật. Xem `docs/frontend.md`.
 Các prompt là hướng dẫn công việc tương lai, không phải bằng chứng đã triển khai.
 
 Trước khi làm, đọc:

@@ -59,6 +59,7 @@ export default defineConfig(
   {
     // Renderer (A) chỉ gọi API preload; không chạm vào Node.js, Electron hay croc.
     files: ['apps/desktop/src/renderer/**/*.{ts,tsx}'],
+    languageOptions: { globals: globals.browser },
     rules: {
       'no-restricted-imports': [
         'error',

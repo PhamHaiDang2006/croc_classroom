@@ -12,7 +12,15 @@ Thiết kế: mục 5, 7, 8 (phần Electron) và 11 trong [system-design.md](..
 | [`src/preload`](src/preload/README.md) | Cầu IPC an toàn |
 | [`src/renderer`](src/renderer/README.md) | Giao diện React |
 
-## Trạng thái sau M0 bootstrap
+## Trạng thái frontend (2026-11-22)
+
+Đã có React renderer và Vite preview, dùng hợp đồng IPC hiện có. Chạy từ gốc:
+`npm run dev -w @croc-classroom/desktop`, mở `http://127.0.0.1:5173`.
+Xem [hướng dẫn frontend](../../docs/frontend.md) cho vai trò, tài khoản mẫu, build và kiểm thử.
+Production dùng `window.croc`; dev có mock với banner rõ ràng. Electron main/preload
+và croc engine thật vẫn chưa có, không coi preview là ứng dụng truyền file hoàn chỉnh.
+
+## Baseline sau M0 bootstrap
 
 Mới có `package.json` khai báo gói trong workspace (phụ thuộc `shared`, `croc-engine`); **chưa có
 Electron**. B dựng khung electron-vite + React (D-001 để B chọn công cụ desktop).
