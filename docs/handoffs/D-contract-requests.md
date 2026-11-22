@@ -1,16 +1,36 @@
 # Yêu cầu hợp đồng của vai trò D
 
-> Cập nhật nhánh `codex/frontend` (2026-11-21): đã bổ sung kiểm tra/commit upload,
-> lock theo bài, dấu xoá bền vững và bảng GC, Dockerfile workspace và test deploy trong CI.
-> Xem phần cập nhật đầu `docs/contracts.md` và `docs/handoffs/A.md`.
-> Các nhận xét dưới đây mô tả baseline D; chính sách relay/hash/WS vẫn cần nhóm chốt.
+> Review D đối với bản tích hợp 2026-11-21. Các nguyên tắc C–D dưới đây là
+> phương án D đồng ý để đưa ra review, không phải phê duyệt thay cho B hoặc C.
+> Không thay schema hay triển khai phần phụ thuộc trước khi các bên thống nhất.
 
 - Mốc: review đề xuất v1 sau khi tích hợp C/Backend
-- Trạng thái: đã đọc và nêu điểm cần làm rõ; chưa được C/B review hoặc chấp thuận
+- Trạng thái: D đã đối chiếu phần lifecycle và ghi nhận các điểm còn mở; chờ B/C review
 - Phiên bản hợp đồng: v1 đề xuất, chưa được các bên sử dụng chốt
 
-Những mục dưới đây là yêu cầu review/đề xuất, không thay schema hoặc cho phép
-triển khai phần phụ thuộc trước khi C/B và D thống nhất.
+## Phần D đồng ý đưa ra review
+
+- Upload và nộp bài chỉ được báo hoàn tất sau khi worker xác minh manifest và C
+  chấp nhận commit vé cùng dữ liệu nghiệp vụ; D không tự commit dữ liệu đó.
+  Khi retry upload, giữ `storageRef` đã commit, không xoá nhầm file đang dùng.
+  Kết quả bị từ chối thì dọn payload riêng của lượt đó.
+- Dùng `withAssignmentLock` theo bài trên cùng `Db` trong một tiến trình server.
+  Khi C gọi `open*`/`purgeAssignment` dưới lock, D không lấy lại lock và không
+  chờ callback cần lock đó. Fetch và GC thông thường do D khởi tạo dùng cùng lock
+  và kiểm tra bài khả dụng; purge xử lý riêng bài đã mang dấu `deleting`.
+- `openCollect` ghi vé hoạt động trước khi trả về. File bản nộp đang được thu
+  phải được giữ đến khi vé kết thúc. `payload_gc` là nguồn công việc dọn bền vững:
+  dưới lock, dùng `pendingPayloadCleanup`, xoá file trước rồi mới xoá dòng GC;
+  retry sau crash phải an toàn, không chỉ dựa vào `supersededStorageRefs` trong RAM.
+- `onCollectConfirmed` trả `void`: D đọc lại trạng thái vé trước khi phát sự kiện
+  hoàn tất. Sau restart cần huỷ vé chưa kết thúc, tiếp tục purge bài `deleting`,
+  GC và dọn payload mồ côi chưa commit.
+- `onFetchVerified` không tự xác thực vé hay lấy lock: D phải kiểm tra quyền,
+  loại vé, bài, người nhận, trạng thái và hạn trước khi gọi; chỉ ghi holdings
+  và báo thành công cho kết quả hợp lệ. Chi tiết đồng bộ với huỷ/restart cần C review.
+
+Các nguyên tắc này khớp interface và đường xử lý C hiện có, không chứng minh
+worker D đã được triển khai hoặc tích hợp thật. Xem các mục còn mở bên dưới.
 
 ## 1. Quyền xác nhận và vòng đời vé
 
@@ -19,8 +39,8 @@ triển khai phần phụ thuộc trước khi C/B và D thống nhất.
   huỷ, hết hạn, xin lại vé hoặc xoá bài.
 - Đề xuất: mỗi vé có ID ổn định và chuyển trạng thái idempotent; worker là bên duy
   nhất xác nhận upload đề/nộp bài đã lưu trên VPS sau khi xác minh manifest. Với
-  `phat_de` và `gv_thu_bai`, client nhận xác nhận hoàn tất sau khi xác minh ở phía
-  nhận; lời báo thành công của client không được thay cho xác minh của worker.
+  `phat_de` và `gv_thu_bai`, client bên nhận báo hoàn tất sau khi tự xác minh
+  manifest; lời báo thành công của bên gửi không thay cho xác nhận của bên nhận.
 - Bên ảnh hưởng: C (REST, DB, quyền), B (engine/client), D (worker, queue).
 - Tương thích/migration: chốt trước khi có schema/ticket implementation; không
   thay endpoint hoặc payload đã triển khai.
@@ -29,17 +49,13 @@ triển khai phần phụ thuộc trước khi C/B và D thống nhất.
 
 ### Upload đề bị thay hoặc hết hạn
 
-- Hiện tại: `AssignmentsService.onUploadStored` nhận `ticketId` nhưng chỉ cập nhật
-  theo `assignmentId` và trạng thái bài; không kiểm tra vé còn chạy/khớp. Interface
-  trả `void`, nên D không biết callback được chấp nhận hay bài đã xoá/đã phát hành.
-- Đề xuất C/D review: xác minh vé đúng loại/bài và còn hiệu lực, cùng việc phát
-  hành và kết thúc vé trong transaction; trả kết quả phân biệt đã commit, gọi lặp
-  cùng lượt và vé không còn hợp lệ. D chỉ gửi sự kiện/ghi holdings khi có xác nhận
-  phù hợp và dọn file không được chấp nhận.
-- Ảnh hưởng/migration: C sửa service, D dùng kết quả; thay interface v1 trước khi
-  các bên triển khai. Chưa có worker thật cần migration dữ liệu.
-- Test: vé A bị vé B thay hoặc hết hạn trước callback A; callback trùng; xoá bài
-  đồng thời; vé sai loại/bài; không phát hành hoặc báo thành công sai.
+- Đã sửa trong bản đề xuất: C kiểm tra vé đúng loại/bài, trạng thái và hạn;
+  transaction phát hành bài và kết thúc vé. `UploadCommitResult` phân biệt từ
+  chối, commit mới và retry với tham chiếu đã commit.
+- D đồng ý với hướng này, chờ C/B review; worker thật phải xử lý kết quả và
+  cleanup theo phần trên. Không cần yêu cầu lại interface `void` cũ.
+- Test C hiện có bao phủ vé bị thay/hết hạn, retry, vé sai và callback sau xoá;
+  chưa kiểm chứng cleanup hoặc WS của worker thật.
 
 ## 2. Vé truyền và worker
 
@@ -56,19 +72,26 @@ triển khai phần phụ thuộc trước khi C/B và D thống nhất.
 - Kiểm chứng: upload hợp lệ, hash sai, vượt dung lượng, hết hạn, hủy, gửi lại
   lệnh cùng ticket ID, restart khi đang truyền; không để file dở dang trong kho.
 
+### Cô lập đường dẫn khi nhận
+
+- Interface B yêu cầu `receive` không ghi ngoài `outDir`, nhưng gợi ý kiểm tra
+  sau khi nhận; kiểm tra sau không ngăn được ghi ra ngoài nếu điều đó đã xảy ra.
+- Đề nghị B xác định và kiểm chứng cơ chế ngăn thoát thư mục trong lúc nhận,
+  kể cả đường dẫn và liên kết không an toàn; D cần bảo đảm này cho vùng tạm VPS.
+  Không kết luận croc thật hiện an toàn hay không khi chưa thử.
+- Bên ảnh hưởng: B (engine), D (worker). Không đổi interface hiện tại; cần B/D
+  review cách thực thi trước khi dùng thật.
+- Test: dữ liệu đầu vào có đường dẫn thoát và liên kết, xác nhận không tạo hoặc
+  sửa file ngoài `outDir`, đồng thời trả lỗi rõ ràng.
+
 ### Giữ phiên bản đang thu và xoá bài đồng thời
 
-- Hiện tại: `collect` đọc `storageRef` rồi gọi `openCollect` bất đồng bộ; commit
-  bài mới trả `supersededStorageRefs`. `purgeAssignment` hoàn tất trước khi C xoá
-  bản ghi bài. Hợp đồng chưa chỉ rõ cách tránh mở vé/commit mới trong các khoảng
-  này, hoặc cách phục hồi việc dọn file sau restart.
-- Đề xuất C/D review: chốt cơ chế đồng bộ theo bài/phiên bản, kiểm tra lại version
-  khi giữ file để thu, và cơ chế lưu/khôi phục công việc xoá an toàn. Không xoá
-  phiên bản đang được thu hoặc cho nhận/vé mới chen vào khi đang xoá bài.
-- Ảnh hưởng/migration: C quản lý giao dịch/schema; D quản lý kho và lifecycle.
-  Thay interface/schema qua quy trình review trước khi triển khai.
-- Test: thu v1 đồng thời nộp v2; tạo vé khi đang xoá; crash trước/sau commit và
-  trước/sau dọn file; callback lặp không mất dữ liệu còn dùng.
+- Đã sửa trong bản đề xuất: lock theo bài, dấu `deleting` bền vững và bảng
+  `payload_gc` giải quyết phần đồng bộ và lưu công việc dọn ở phía C.
+- D đồng ý với các trách nhiệm worker nêu trên; C quản lý schema, D quản lý kho
+  và phục hồi. Cần B/C review trước khi triển khai phần phụ thuộc.
+- Test C hiện có kiểm tra thu v1 đồng thời nộp v2, GC và purge lỗi rồi retry.
+  Còn cần test worker thật và crash trước/sau commit, xoá file và xoá dòng GC.
 
 ## 3. WebSocket, nguồn phát và hàng đợi
 
@@ -85,6 +108,16 @@ triển khai phần phụ thuộc trước khi C/B và D thống nhất.
   trước khi A/B/C/D triển khai consumer.
 - Kiểm chứng: LAN cùng public IP và subnet, CGNAT khác subnet, VPS đầy, hàng đợi
   FIFO, accept trễ, disconnect, restart, sự kiện trùng và hủy đồng thời.
+
+### Thu hồi phiên WebSocket
+
+- `SessionService.onUserSessionsRevoked` thông báo khi thu hồi mọi phiên của user;
+  `revoke` và `revokeByToken` không phát thông báo đó. Không được giả định logout
+  một phiên đã tự đóng WS đang mở hoặc phiên đã hết hạn được kiểm tra lại.
+- Đề nghị C/D/B chốt cách kiểm tra/thu hồi theo từng session và hết hạn cho WS,
+  không thay `SessionResolver` hay schema đơn phương.
+- Kiểm chứng: logout một phiên chỉ đóng đúng kết nối liên quan; hết hạn và vô hiệu
+  hoá tài khoản đóng kết nối phù hợp, không cho tiếp tục nhận hoặc gửi lệnh.
 
 ## 4. Báo cáo sai hash và loại nguồn
 
@@ -120,7 +153,8 @@ triển khai phần phụ thuộc trước khi C/B và D thống nhất.
 |---|---|---|
 | C | REST, DB, ticket authority, health endpoint, trạng thái chia sẻ | Chưa review |
 | B | croc-engine, WS client, xác minh/tiến trình | Chưa review |
-| D | worker, queue, relay, deploy, E2E | Đề xuất |
+| D | lifecycle C–D | Đã đối chiếu, đồng ý đưa các nguyên tắc ở trên ra review |
+| D | WS, queue, relay, engine và deploy | Còn đề xuất/cần làm rõ; chưa chốt toàn bộ |
 
 ## Chính sách relay bị lộ / truyền treo
 
