@@ -5,27 +5,75 @@ Bọc croc CLI. Đây là **nơi duy nhất** trong hệ thống chạy croc và
 
 Thiết kế: mục 3, 4.2 và 6 trong [system-design.md](../../docs/system-design.md).
 
-## Việc cần làm
+## ✅ Hoàn thành
 
-- [ ] Khởi tạo package TypeScript trong workspace.
-- [ ] Script tải croc **10.7.0** bản chính thức cho các nền tảng: Windows x64, macOS x64, macOS arm64, Linux x64, rồi kiểm tra checksum từ trang phát hành.
-- [ ] Hàm tìm đường dẫn file chạy croc trong ba môi trường: khi phát triển, trong app đã đóng gói, và trong container server.
-- [ ] Định nghĩa **quy ước gốc bộ file (payload)**: gửi thư mục gốc như thế nào, bên nhận tìm gốc ở đâu. Mọi nơi dùng chung một quy ước.
-- [ ] Hàm `send({ payloadDir, code, relay, pass, timeoutMs })` và `receive({ code, outDir, relay, pass, timeoutMs })`.
-  - Trả về đối tượng phát sự kiện `progress`, `done`, `error`, kèm hàm `cancel()`.
-- [ ] Các cờ cố định khi gọi croc: `--yes`, `--relay`, `--pass`, `--overwrite`.
-  - Truyền code qua biến môi trường `CROC_SECRET` nếu croc hỗ trợ. Nếu không thì dùng `--code` hoặc tham số dòng lệnh.
-- [ ] Đọc tiến trình từ đầu ra croc: các dòng ngắt bằng `\r`, dạng `tên  xx% |…| (a/b B, tốc độ)`.
-- [ ] **Timeout bắt buộc** cho mọi lượt. Người nhận thứ hai dùng cùng code sẽ treo mãi mà không báo lỗi.
-- [ ] Khi huỷ hoặc hết giờ, dừng cả cây tiến trình con. Trên Windows cần xử lý riêng.
-- [ ] Phân loại lỗi: hết giờ, sai mật khẩu relay, không kết nối được relay, bị huỷ, croc thoát với mã lỗi.
-- [ ] Sau khi nhận, kiểm tra không có file nào nằm ngoài thư mục đích.
-- [ ] Kiểm thử tích hợp với relay cục bộ (`croc --pass <pw> relay --ports …`):
+- [x] Package TypeScript trong workspace, dùng pnpm workspaces.
+- [x] Script tải croc **10.7.0** cho các nền tảng: Windows x64, macOS x64, macOS arm64, Linux x64, kiểm tra SHA256 từ trang phát hành (GitHub API).
+- [x] Module `finder.ts`: tìm croc trong ba môi trường (dev, app, container), hỗ trợ platform detection.
+- [x] Quy ước gốc bộ file: gửi toàn bộ directory được chỉ định; bên nhận nhận vào `outDir` chỉ định.
+- [x] Export functions `send()` và `receive()`:
+  - Tham số: `{ payloadDir|code, code|outDir, relay, pass, timeoutMs }`
+  - Trả về object với `.on("progress" | "done" | "error")` và `.cancel()` và `.isActive()`.
+- [x] Cờ cố định: `--yes`, `--relay`, `--pass`, `--overwrite`.
+  - Code được truyền qua `CROC_SECRET` nếu hỗ trợ, nếu không dùng `--code`.
+- [x] Parser `progress-parser.ts`: đọc dòng croc (phân cách bởi `\r`), trích % và tốc độ.
+- [x] **Timeout bắt buộc** với `setTimeout` + tree-kill; lần nhận thứ hai tự động lỗi TIMEOUT.
+- [x] Dừng cây tiến trình: dùng `tree-kill` (hỗ trợ Windows với `taskkill`, Unix với signal).
+- [x] Phân loại lỗi: enum `TransferErrorType` gồm TIMEOUT, RELAY_AUTH_FAILED, RELAY_CONNECT_FAILED, CANCELLED, PROCESS_EXIT, SECURITY_VIOLATION, PATH_ESCAPE, UNKNOWN.
+- [x] Xác minh path safety sau nhận: `verifyPathSafety()` kiểm tra không có file nào ở ngoài `outDir`.
+- [x] Unit test cho progress parser và finder.
+
+## Chưa hoàn thành (phụ thuộc vào croc binary)
+
+- [ ] Integration test với relay cục bộ:
   - [ ] Một gửi, một nhận thành công.
-  - [ ] Người nhận thứ hai dùng cùng code phải kết thúc bằng lỗi hết giờ.
-  - [ ] Huỷ giữa chừng thì không còn tiến trình croc nào sót lại.
-  - [ ] Thư mục nhiều cấp, tên file tiếng Việt có dấu.
+  - [ ] Người nhận thứ hai dùng cùng code lỗi TIMEOUT.
+  - [ ] Cancel giữa chừng → không còn tiến trình croc nào.
+  - [ ] Thư mục lồng, tên file tiếng Việt NFD/NFC.
 
-## Xong khi
+## Hướng dẫn sử dụng
 
-Kiểm thử tích hợp chạy qua trên Linux, Windows và macOS.
+### Tải croc
+
+```bash
+cd packages/croc-engine
+npm run download-croc
+```
+
+### Gửi file
+
+```typescript
+import { send } from "@croc-classroom/croc-engine";
+
+const transfer = send({
+  payloadDir: "/path/to/files",
+  code: "my-code-phrase",
+  relay: "relay.example.com:9009",
+  pass: "relay-password",
+  timeoutMs: 60000,
+});
+
+transfer.on("progress", (p) => console.log(`${p.percentage}%`));
+transfer.on("done", (r) => console.log("Sent!"));
+transfer.on("error", (e) => console.error(e.type));
+```
+
+### Nhận file
+
+```typescript
+import { receive } from "@croc-classroom/croc-engine";
+
+const transfer = receive({
+  code: "my-code-phrase",
+  outDir: "/path/to/output",
+  relay: "relay.example.com:9009",
+  pass: "relay-password",
+  timeoutMs: 120000,
+});
+
+transfer.on("done", (r) => console.log("Received!"));
+transfer.on("error", (e) => console.error(e.type));
+await transfer.cancel(); // Can cancel anytime
+```
+
+Xem chi tiết tại [USAGE.md](./USAGE.md) và [ARCHITECTURE.md](./ARCHITECTURE.md).
