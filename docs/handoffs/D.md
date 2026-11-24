@@ -3,6 +3,20 @@
 > Baseline bàn giao D trước bản sửa tích hợp frontend. Nhánh frontend đã thêm Dockerfile,
 > thay build context và sửa lifecycle C–D; xem `A.md` để biết kết quả kiểm chứng mới.
 
+## Cập nhật review hợp đồng D
+
+- D đã đối chiếu lifecycle C–D sau bản sửa tích hợp và ghi các nguyên tắc đồng ý,
+  trách nhiệm worker cùng vấn đề còn mở trong `D-contract-requests.md`. Đây chỉ là
+  review phía D, không thay phê duyệt B/C; hợp đồng v1 vẫn chờ nhóm chốt.
+- Upload commit, lock theo bài, dấu xoá bền vững và GC đã có ở phía C. Worker D,
+  phục hồi sau restart, xử lý WS/queue và kiểm thử tích hợp thật vẫn chưa có.
+- Dockerfile server đã có; thông tin thiếu Dockerfile ở baseline bên dưới không
+  còn hiện hành. Chưa xác nhận deploy container hoặc VPS trong lượt review này.
+- `npm test -- apps/server/test/transfer-lifecycle.test.ts packages/shared/test/contracts.test.ts --testTimeout=30000`
+  trên Windows/Node 24.11.1: 2 file, 100 test đạt. Lần đầu với timeout mặc định
+  có một test timeout; chạy lại đạt. Đây là test schema và lifecycle C với
+  `TicketIssuer` giả, không chứng minh worker, truyền file hay WS thật.
+
 - Mốc: M0 — review v1, deploy scaffold và chuẩn bị kiểm thử
 - Branch / commit hoặc PR: `D_role`, dựa trên merge `8ece671`; thay đổi mới chưa commit
 - Phiên bản hợp đồng đang sử dụng: v1 đề xuất của C, chưa được các bên review/chốt
