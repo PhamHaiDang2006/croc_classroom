@@ -1,17 +1,5 @@
-# apps/desktop/src/preload
+# Electron preload
 
-Cầu nối IPC giữa giao diện (renderer) và tiến trình chính. Cầu chỉ mở đúng những hàm giao diện cần dùng.
+`index.ts` cung cấp `window.croc.invoke` và `window.croc.on` theo kiểu CrocApi của shared. Bridge kiểm tên kênh và sự kiện, chỉ chuyển payload đến listener và trả hàm gỡ đăng ký. Main kiểm schema trước khi xử lý. Sandbox preload dùng bundle CommonJS với Electron là module ngoài.
 
-Thiết kế: mục 8, dòng "Electron", trong [system-design.md](../../../../docs/system-design.md).
-
-## Việc cần làm
-
-- [ ] Dùng `contextBridge` mở một API có kiểu, lấy kiểu từ [`packages/shared`](../../../../packages/shared/README.md). Gồm:
-  - [ ] Đăng nhập, đăng xuất, kích hoạt.
-  - [ ] Bài tập, nhận đề, nộp bài, thu bài.
-  - [ ] Cài đặt, mở thư mục.
-  - [ ] Đăng ký nhận sự kiện tiến trình truyền file.
-- [ ] **Không** mở trực tiếp `ipcRenderer`, `fs`, `child_process` hay bất kỳ module Node nào.
-- [ ] Mọi tham số từ giao diện phải được kiểm tra lại ở phía tiến trình chính.
-- [ ] Cấu hình cửa sổ: `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`.
-- [ ] Chặn điều hướng và mở cửa sổ mới tới địa chỉ lạ.
+[Bàn giao và cách kiểm tra với Electron thật](../../../../docs/handoffs/B.md)

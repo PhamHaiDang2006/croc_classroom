@@ -1,45 +1,26 @@
-# apps/desktop
+# Croc Classroom Desktop
 
-App Electron dùng chung cho **giảng viên** và **sinh viên**. Sau khi đăng nhập, app hiện giao diện theo vai trò.
+Ứng dụng Electron dùng chung cho giảng viên và sinh viên. Renderer gọi preload qua IPC v1. Main quản lý phiên, REST, WebSocket, file và tiến trình croc.
 
-Thiết kế: mục 5, 7, 8 (phần Electron) và 11 trong [system-design.md](../../docs/system-design.md).
+## Chạy từ gốc repository
 
-## Các phần
+Dùng Node theo engines của workspace. Sau khi cài dependency, tải croc và build trước khi mở Electron.
 
-| Thư mục | Việc |
-|---|---|
-| [`src/main`](src/main/README.md) | Tiến trình chính: API client, WebSocket, croc, seeder, cache chia sẻ, cài đặt |
-| [`src/preload`](src/preload/README.md) | Cầu IPC an toàn |
-| [`src/renderer`](src/renderer/README.md) | Giao diện React |
+```sh
+npm ci
+node packages/croc-engine/scripts/download.mjs
+npm run build
+npm start -w apps/desktop
+```
 
-## Trạng thái frontend (2026-11-22)
+Nếu môi trường npm chưa tải Electron sau khi cài dependency, chạy `npx --no-install install-electron`. Server chạy riêng. Dùng HTTPS với máy chủ từ xa, hoặc HTTP qua localhost để thử trên cùng máy. Phiên thật cần endpoint đăng nhập và cấu hình. Chức năng truyền file của lớp học cần thêm dịch vụ vé, WebSocket, worker và relay.
 
-Đã có React renderer và Vite preview, dùng hợp đồng IPC hiện có. Chạy từ gốc:
-`npm run dev -w @croc-classroom/desktop`, mở `http://127.0.0.1:5173`.
-Xem [hướng dẫn frontend](../../docs/frontend.md) cho vai trò, tài khoản mẫu, build và kiểm thử.
-Production dùng `window.croc`; dev có mock với banner rõ ràng. Electron main/preload
-và croc engine thật vẫn chưa có, không coi preview là ứng dụng truyền file hoàn chỉnh.
+Để phát triển riêng giao diện, dùng `npm run dev -w apps/desktop`. Vite preview dùng mock. Xem [bàn giao B](../../docs/handoffs/B.md) để biết phạm vi đã kiểm chứng.
 
-## Baseline sau M0 bootstrap
+## Đóng gói và cài thử
 
-Mới có `package.json` khai báo gói trong workspace (phụ thuộc `shared`, `croc-engine`); **chưa có
-Electron**. B dựng khung electron-vite + React (D-001 để B chọn công cụ desktop).
+Chạy `npm run package -w apps/desktop` trên hệ điều hành đích. Trên macOS, dùng thêm `-- x64` hoặc `-- arm64` để chọn kiến trúc. Kết quả nằm trong `apps/desktop/dist/installers`. Binary croc được kiểm SHA-256 và đặt trong resources bên cạnh giấy phép MIT.
 
-- Hợp đồng IPC (`window.croc`): `packages/shared/src/ipc.ts` — chờ B, A review.
-- A làm giao diện trước bằng `createMockCrocApi()` từ `@croc-classroom/shared/mocks`.
-- ESLint đã chặn `src/renderer/**` import `electron`, croc-engine, `shared/node` và module Node.js.
-
-## Việc cần làm (khung app và đóng gói)
-
-- [ ] Khởi tạo electron-vite + React + TypeScript trong workspace; dùng [`packages/shared`](../../packages/shared/README.md) và [`packages/croc-engine`](../../packages/croc-engine/README.md).
-- [ ] Đặt địa chỉ server mặc định lúc build; màn hình đăng nhập vẫn cho sửa.
-- [ ] Chỉ cho chạy một bản app cùng lúc (single instance lock).
-- [ ] Biểu tượng ở khay hệ thống: khi đang chia sẻ mà đóng cửa sổ thì app thu xuống khay thay vì thoát.
-- [ ] electron-builder:
-  - [ ] Windows: bộ cài NSIS.
-  - [ ] macOS: dmg cho x64 và arm64 (phải build trên máy Mac).
-  - [ ] Linux: AppImage.
-  - [ ] Đóng gói file chạy croc 10.7.0 đúng nền tảng.
-- [ ] Kèm thông báo giấy phép của croc (MIT) trong bộ cài.
-- [ ] Viết hướng dẫn cài đặt khi bộ cài chưa ký số (cảnh báo SmartScreen và Gatekeeper).
-- [ ] Toàn bộ giao diện bằng tiếng Việt.
+- Windows x64 tạo bộ cài NSIS. Với bản nội bộ chưa ký, kiểm tra nguồn gốc và checksum do nhóm phát hành cung cấp trước khi chọn **More info → Run anyway** nếu Windows cho phép.
+- macOS tạo DMG. Kéo ứng dụng vào Applications. Nếu Gatekeeper chặn bản nội bộ đã xác minh, dùng mục Privacy & Security của macOS để cho phép riêng ứng dụng.
+- Linux x64 tạo AppImage. Cấp quyền thực thi cho file rồi mở trên máy hỗ trợ AppImage.

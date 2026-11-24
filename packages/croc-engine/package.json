@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Bọc croc CLI: gửi, nhận, tiến trình, huỷ, timeout. Hiện mới có interface và engine giả (loopback) để test.",
+  "description": "Bọc croc CLI: gửi, nhận, tiến trình, huỷ, timeout. Engine thật và loopback để kiểm thử.",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
