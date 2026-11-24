@@ -1,17 +1,94 @@
-# apps/desktop/src/preload
+# preload — IPC Bridge (Person B, Phase 2)
 
-Cầu nối IPC giữa giao diện (renderer) và tiến trình chính. Cầu chỉ mở đúng những hàm giao diện cần dùng.
+Secure Electron IPC bridge between renderer (React) and main process.
 
-Thiết kế: mục 8, dòng "Electron", trong [system-design.md](../../../../docs/system-design.md).
+## Status: ✅ COMPLETE
 
-## Việc cần làm
+- [x] contextBridge implementation
+- [x] Type-safe IPC interface
+- [x] Security tests
+- [x] Zero Node API exposure
 
-- [ ] Dùng `contextBridge` mở một API có kiểu, lấy kiểu từ [`packages/shared`](../../../../packages/shared/README.md). Gồm:
-  - [ ] Đăng nhập, đăng xuất, kích hoạt.
-  - [ ] Bài tập, nhận đề, nộp bài, thu bài.
-  - [ ] Cài đặt, mở thư mục.
-  - [ ] Đăng ký nhận sự kiện tiến trình truyền file.
-- [ ] **Không** mở trực tiếp `ipcRenderer`, `fs`, `child_process` hay bất kỳ module Node nào.
-- [ ] Mọi tham số từ giao diện phải được kiểm tra lại ở phía tiến trình chính.
-- [ ] Cấu hình cửa sổ: `contextIsolation: true`, `sandbox: true`, `nodeIntegration: false`.
-- [ ] Chặn điều hướng và mở cửa sổ mới tới địa chỉ lạ.
+## What This Does
+
+Exposes `window.croc` to the renderer with these modules:
+
+```typescript
+window.croc.auth.login(username, password)
+window.croc.student.joinAssignment(codePhrase)
+window.croc.transfers.on('progress', callback)
+window.croc.settings.get()
+// ... 20+ safe IPC methods
+```
+
+## Files
+
+- **src/index.ts** - Main entry: contextBridge registration
+- **src/types.ts** - Type definitions (CrocIPC interface, all types)
+- **src/__tests__/safety.test.ts** - Security verification
+
+## Security
+
+✅ **What's exposed:**
+- Safe, typed IPC methods only
+- No raw `ipcRenderer`
+- No Node.js modules
+
+❌ **What's NOT exposed:**
+- `ipcRenderer` - undefined
+- `fs` - undefined
+- `child_process` - undefined
+- `path` - undefined
+- Any Node APIs
+
+## Build
+
+```bash
+npm run build      # Compile TypeScript
+npm run dev        # Watch mode
+npm test           # Run security tests
+```
+
+## Testing
+
+```bash
+npm test
+# Should pass: no Node APIs exposed
+```
+
+## Integration
+
+Used by: `apps/desktop/src/main/index.ts` (Electron main)
+
+Loaded via:
+```javascript
+window.webPreferences.preload = path.join(__dirname, '../../preload/dist/index.js')
+```
+
+## IPC Channels
+
+See [docs/contracts.md](../../../../docs/contracts.md) for complete list.
+
+## For Renderer Developers (Person A)
+
+All IPC calls return Promises:
+
+```typescript
+// Login
+const { token, user } = await window.croc.auth.login('user', 'pass')
+
+// File transfer progress
+window.croc.transfers.on('progress', (p) => {
+  console.log(p.percentage + '%')
+})
+
+// Settings
+const settings = await window.croc.settings.get()
+await window.croc.settings.update({ enableSeeding: true })
+```
+
+All parameters are validated in main process — you don't need to validate.
+
+## Handoff
+
+See [docs/handoffs/B.md](../../../../docs/handoffs/B.md) for complete implementation details.
