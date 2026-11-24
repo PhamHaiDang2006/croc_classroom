@@ -11,12 +11,15 @@
     "cli": "node --env-file-if-exists=.env dist/cli.js"
   },
   "dependencies": {
+    "@croc-classroom/croc-engine": "^0.1.0",
     "@croc-classroom/shared": "0.1.0",
     "better-sqlite3": "^13.2.0",
     "fastify": "^5.12.8",
+    "ws": "^8.23.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^9.6.0"
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/ws": "^8.18.2"
   }
 }

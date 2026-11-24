@@ -1,8 +1,6 @@
 # croc-classroom — Giao–Nộp bài tập qua croc
 
-> Tên dự án tạm. Trạng thái: **phía server của C xong M0 (hợp đồng v1 chờ review), M1 (tài khoản),
-> M2 (bài tập, `/join`), M3 (nộp bài, biên nhận, thu bài). Có frontend React với mock IPC; chưa có truyền file thật (D), Electron main/preload (B),
-> engine croc thật (B).**
+> Nhánh A-Frontend tích hợp renderer React, Electron main/preload, server SQLite, dịch vụ vé, WebSocket và worker croc. Đã thử hai app Electron và relay thật trên Windows. [Cách chạy toàn hệ thống và lặp lại E2E](tests/e2e/README.md).
 
 Ứng dụng desktop (Electron) giúp **một giảng viên** giao bài cho sinh viên bằng **một code phrase duy nhất**
 và nhận bài nộp. File được truyền bằng [croc](https://github.com/schollz/croc), có mã hoá đầu–cuối, qua relay

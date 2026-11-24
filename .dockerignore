@@ -1,4 +1,6 @@
 .git
+packages/croc-engine/bin
+packages/croc-engine/.cache
 **/node_modules
 **/dist
 **/.env

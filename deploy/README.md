@@ -9,7 +9,7 @@ Thiết kế: mục 5, 7.1, 13 và 14 trong [system-design.md](../docs/system-de
 Compose, Caddyfile và `.env.example` đã được dựng. Đây là **scaffold**, chưa phải
 stack đã triển khai. Nhánh frontend đã thêm `apps/server/Dockerfile` build từ gốc
 workspace, chạy bằng user `node` (UID/GID 1000). Hợp đồng vẫn chờ review nhóm.
-Image hiện chạy backend nghiệp vụ; worker và engine croc thật chưa được triển khai.
+Image build server và croc-engine, tải croc 10.7.0 Linux x64 có kiểm SHA-256. Worker dùng relay nội bộ qua WORKER_RELAY_ADDRESS, desktop nhận địa chỉ công khai qua RELAY_ADDRESS. Kho file nằm dưới /data/payloads.
 Xem [bàn giao D](../docs/handoffs/D.md) và [yêu cầu hợp đồng D](../docs/handoffs/D-contract-requests.md).
 
 ## Yêu cầu
