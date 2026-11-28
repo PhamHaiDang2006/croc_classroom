@@ -143,8 +143,10 @@ export function Workspace({
         setSettings(await unwrap(api.invoke("settings.get")));
     });
   }
+  // Lượt chia sẻ lại đề cho bạn (seed) chạy nền: không phải thao tác của người dùng, không được khoá
+  // nút nhận đề / nộp bài hay hiện như tiến trình của chính họ.
   const latestTransfer = Object.values(transfers)
-    .filter((event) => event.assignmentId === selected)
+    .filter((event) => event.assignmentId === selected && event.kind !== "seed")
     .at(-1);
   const transferring = !!latestTransfer && !terminal(latestTransfer);
   const list = lecturer ? assignments : studentAssignments;

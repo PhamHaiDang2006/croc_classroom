@@ -146,3 +146,42 @@ test('native IPC errors are displayed without silently switching to mock data', 
   await expect(page.getByRole('alert')).toContainText('Không kết nối được máy chủ');
   await expect(page.getByText('Bản xem thử · dữ liệu mẫu, không truyền file thật')).not.toBeVisible();
 });
+
+test('background seeding to classmates does not block the student own submit', async ({ page }) => {
+  const assignmentId = '0b6f3c5e-6d0f-4c69-9a0b-7d2f8e1c4a21';
+  const detail = {
+    id: assignmentId, title: 'Bài chia sẻ', description: '', deadlineAt: null, totalSize: 6, fileCount: 1,
+    joinedAt: '2026-11-17T08:00:00.000Z', receivedAt: '2026-11-17T08:01:00.000Z', latestReceipt: null,
+    manifest: { version: 1, files: [{ path: 'de.txt', size: 6, sha256: 'a'.repeat(64) }] },
+  };
+  await page.addInitScript(({ detail }) => {
+    const listeners: Record<string, ((value: unknown) => void)[]> = {};
+    const { manifest: _manifest, ...summary } = detail;
+    const data: Record<string, unknown> = {
+      'session.get': { serverUrl: 'https://example.test', user: { id: 'test-student', role: 'student', fullName: 'Sinh viên kiểm thử', mssv: '20210001' } },
+      'student.listAssignments': [{ ...summary, local: { hasWorkCopy: true, seeding: true } }],
+      'student.getAssignment': detail,
+      'student.getReceipt': null,
+      'dialog.pickPayload': { selectionId: '7a1c5f0e-0d7b-4b55-9f0a-2c4b9d6c1e11', label: 'bai-lam', fileCount: 1, totalSize: 6 },
+    };
+    Object.assign(window, {
+      emitTransfer: (value: unknown) => (listeners.transfer ?? []).forEach((listener) => listener(value)),
+      croc: {
+        invoke: async (channel: string) => ({ ok: true, data: data[channel] ?? null }),
+        on: (event: string, listener: (value: unknown) => void) => {
+          (listeners[event] ??= []).push(listener);
+          return () => {};
+        },
+      },
+    });
+  }, { detail });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Chọn thư mục bài làm' }).click();
+  const submit = page.getByRole('button', { name: /Gửi bài nộp/ });
+  await expect(submit).toBeEnabled();
+  await page.evaluate((id) => (window as unknown as { emitTransfer: (v: unknown) => void }).emitTransfer({
+    operationId: 'seed-1', assignmentId: id, kind: 'seed', phase: 'transferring', bytesDone: 3, bytesTotal: 6, at: new Date().toISOString(),
+  }), assignmentId);
+  await expect(page.getByRole('button', { name: 'Huỷ truyền' })).not.toBeVisible();
+  await expect(submit).toBeEnabled();
+});

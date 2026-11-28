@@ -188,6 +188,10 @@ SQLite `synchronous = NORMAL` có thể mất biên nhận khi mất điện; kh
     (1.419 dòng) thành `Login`, `Workspace`, `AssignmentsPage`, `AssignmentDetail`, `StudentsPage`,
     `SettingsPage`, `WorkspaceModal`, `ui`, `common`. JSX chuyển nguyên văn: HTML 11 màn hình ở chế độ
     xem thử trùng khớp trước/sau; `ui-tests` 7/7 đạt (Chromium hệ thống); không đổi IPC, CSS.
+  - Sửa lỗi medium (review lần 2, 2026-11-28, C làm thay, cần A review): sự kiện `seed` (máy đang chia sẻ
+    đề cho bạn) bị lấy làm "lượt truyền hiện tại" của bài, khoá nút nộp bài / nhận đề và hiện tiến trình,
+    nút huỷ như lượt của chính SV → `Workspace.tsx` bỏ qua `kind === 'seed'`. Test hồi quy trong
+    `ui-tests/frontend.spec.ts` (fail trên mã cũ). Còn mở (low): màn đăng nhập không điền sẵn địa chỉ server.
 - **D**:
   - Dọn code theo yêu cầu người dùng (2026-11-28, C làm thay, cần D review): định dạng lại
     `distribution/service.ts`, `distribution/peers.ts`, `vps-worker/store.ts` (mỗi lệnh một dòng, hằng số
