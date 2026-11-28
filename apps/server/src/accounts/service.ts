@@ -83,30 +83,36 @@ export class AccountsService {
     const bucket = ipBucket(ip);
     const key = `login:${request.role}:${identifier}|${bucket}`;
     const ipKey = `ip:${bucket}`;
-    this.limiter.assertAllowed(key);
-    this.ipLimiter.assertAllowed(ipKey);
+    // Ghi lần thử là "sai" NGAY (đồng bộ, trước mọi await), rồi trả lại nếu hoá ra không sai. Nếu chỉ ghi
+    // sau khi băm xong, các yêu cầu song song cùng lọt qua kiểm tra trong lúc chờ Argon2.
+    const releaseAttempt = this.reserveAttempt(key, ipKey);
+    let wrongPassword = false;
+    try {
+      const row =
+        request.role === 'student'
+          ? this.findUser('mssv = ? AND role = ?', identifier, 'student')
+          : this.findUser('username = ? AND role = ?', identifier, 'lecturer');
 
-    const row =
-      request.role === 'student'
-        ? this.findUser('mssv = ? AND role = ?', identifier, 'student')
-        : this.findUser('username = ? AND role = ?', identifier, 'lecturer');
+      if (!row) {
+        await verifyPassword(await this.dummyHash(), request.password);
+        wrongPassword = true;
+        throw appError('INVALID_CREDENTIALS');
+      }
+      if (!row.password_hash) throw appError('ACCOUNT_NOT_ACTIVATED');
+      if (!(await verifyPassword(row.password_hash, request.password))) {
+        wrongPassword = true;
+        throw appError('INVALID_CREDENTIALS');
+      }
+      // Chỉ báo bị vô hiệu hoá khi mật khẩu đúng, để không lộ trạng thái tài khoản cho người đoán mò.
+      if (row.disabled) throw appError('ACCOUNT_DISABLED');
 
-    if (!row) {
-      await verifyPassword(await this.dummyHash(), request.password);
-      this.recordFailure(key, ipKey);
-      throw appError('INVALID_CREDENTIALS');
+      this.limiter.reset(key);
+      const created = this.sessions.create(row.id, request.deviceName);
+      return { token: created.token, expiresAt: created.expiresAt, user: toUser(row) };
+    } finally {
+      // Chưa kích hoạt, bị vô hiệu hoá, đăng nhập đúng, hàng chờ băm đầy, lỗi khác: không tính là sai.
+      if (!wrongPassword) releaseAttempt();
     }
-    if (!row.password_hash) throw appError('ACCOUNT_NOT_ACTIVATED');
-    if (!(await verifyPassword(row.password_hash, request.password))) {
-      this.recordFailure(key, ipKey);
-      throw appError('INVALID_CREDENTIALS');
-    }
-    // Chỉ báo bị vô hiệu hoá khi mật khẩu đúng, để không lộ trạng thái tài khoản cho người đoán mò.
-    if (row.disabled) throw appError('ACCOUNT_DISABLED');
-
-    this.limiter.reset(key);
-    const created = this.sessions.create(row.id, request.deviceName);
-    return { token: created.token, expiresAt: created.expiresAt, user: toUser(row) };
   }
 
   async activate(request: z.output<typeof ActivateRequestSchema>, ip: string): Promise<Session> {
@@ -267,6 +273,23 @@ export class AccountsService {
   }
 
   // ------------------------------------------------------------ tiện ích
+
+  /**
+   * Kiểm tra giới hạn rồi ghi trước một lần sai cho cả hai khoá, trong cùng một bước đồng bộ.
+   * Trả về hàm trả lại lần đã ghi (gọi tối đa một lần có tác dụng).
+   */
+  private reserveAttempt(accountKey: string, ipKey: string): () => void {
+    this.limiter.assertAllowed(accountKey);
+    this.ipLimiter.assertAllowed(ipKey);
+    this.recordFailure(accountKey, ipKey);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.limiter.refund(accountKey);
+      this.ipLimiter.refund(ipKey);
+    };
+  }
 
   private recordFailure(accountKey: string, ipKey: string): void {
     this.limiter.recordFailure(accountKey);

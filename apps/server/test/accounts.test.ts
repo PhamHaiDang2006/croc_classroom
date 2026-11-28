@@ -230,6 +230,38 @@ describe('giới hạn tần suất', () => {
     expect((await loginStudent('20210001')).statusCode).toBe(200);
   });
 
+  it('đoán mật khẩu song song không vượt 10 lần / 5 phút (review C/Backend)', async () => {
+    h = await accountsHarness();
+    const results = await Promise.all(
+      Array.from({ length: 40 }, () =>
+        h.call('POST', '/auth/login', { body: { role: 'lecturer', username: LECTURER.username, password: 'sai-mat-khau' } }),
+      ),
+    );
+    const codes = results.map((res) => errorCode(res));
+    expect(codes.filter((c) => c === 'INVALID_CREDENTIALS')).toHaveLength(10);
+    expect(codes.filter((c) => c === 'RATE_LIMITED')).toHaveLength(30);
+  });
+
+  it('lần thử không sai mật khẩu không bị tính vào giới hạn', async () => {
+    h = await accountsHarness();
+    const gv = await h.loginLecturer();
+    const { '20210001': an } = await importStudents(gv);
+    // Chưa kích hoạt: không chạy băm, không tính.
+    for (let i = 0; i < 12; i++) expect(errorCode(await loginStudent('20210001'))).toBe('ACCOUNT_NOT_ACTIVATED');
+    await activate('20210001', an!.code);
+    // Đăng nhập đúng nhiều lần cũng không tính (kể cả trần theo IP).
+    for (let i = 0; i < 12; i++) expect((await loginStudent('20210001')).statusCode).toBe(200);
+    // Bị vô hiệu hoá, mật khẩu đúng: không tính.
+    await h.call('PATCH', `/students/${an!.id}`, { token: gv, body: { disabled: true } });
+    for (let i = 0; i < 12; i++) expect(errorCode(await loginStudent('20210001'))).toBe('ACCOUNT_DISABLED');
+    await h.call('PATCH', `/students/${an!.id}`, { token: gv, body: { disabled: false } });
+    // 9 lần sai rồi đúng: vẫn đăng nhập được, bộ đếm của tài khoản được xoá.
+    for (let i = 0; i < 9; i++) expect(errorCode(await loginStudent('20210001', 'sai-mat-khau'))).toBe('INVALID_CREDENTIALS');
+    expect((await loginStudent('20210001')).statusCode).toBe(200);
+    for (let i = 0; i < 9; i++) expect(errorCode(await loginStudent('20210001', 'sai-mat-khau'))).toBe('INVALID_CREDENTIALS');
+    expect((await loginStudent('20210001')).statusCode).toBe(200);
+  });
+
   it('đổi địa chỉ IPv6 trong cùng dải /64 không thoát giới hạn của tài khoản (review M0–M3)', async () => {
     h = await accountsHarness();
     const { '20210001': an } = await importStudents(await h.loginLecturer());

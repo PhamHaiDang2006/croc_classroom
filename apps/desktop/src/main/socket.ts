@@ -121,6 +121,7 @@ export class Connection {
     switch (m.type) {
       case 'welcome':
         this.tries = 0;
+        jobs.api.syncClock(Date.parse(m.serverTime));
         this.emit('connection', { server: 'online' });
         for (const id of jobs.files.holdings.keys()) this.announce(id);
         await jobs.reconcile();

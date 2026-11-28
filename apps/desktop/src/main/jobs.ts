@@ -106,6 +106,7 @@ export class Jobs {
     item?.job.transfer?.cancel();
   }
   async stop() {
+    this.stopCollectRetries();
     for (const id of this.running.keys()) this.cancel(id);
     await Promise.all([...this.running.values()].map((x) => x.done));
   }
@@ -128,7 +129,8 @@ export class Jobs {
     const options = {
       relay: this.config.relay,
       code: ticket.crocCode,
-      timeoutMs: Date.parse(ticket.expiresAt) - Date.now(),
+      // expiresAt theo giờ server: so với giờ server ước lượng, không so với đồng hồ máy.
+      timeoutMs: Date.parse(ticket.expiresAt) - this.api.serverNow(),
     };
     const transfer = send
       ? this.engine.send({ ...options, payloadDir: dir })
@@ -158,7 +160,7 @@ export class Jobs {
     job.signal.throwIfAborted();
     let info = await this.api.call('ticketResult', ticket.ticketId, { outcome: 'succeeded' });
     while (!isTerminalTicketStatus(info.status)) {
-      if (Date.now() >= Date.parse(ticket.expiresAt)) throw new TransferFailure('timeout');
+      if (this.api.serverNow() >= Date.parse(ticket.expiresAt)) throw new TransferFailure('timeout');
       await delay(800, undefined, { signal: job.signal });
       info = await this.api.call('getTicket', ticket.ticketId);
     }
@@ -245,6 +247,27 @@ export class Jobs {
   }
   private collecting = new Set<string>();
   private collectAgain = new Set<string>();
+  private collectRetry = new Map<string, NodeJS.Timeout>();
+  /** Chờ trước khi thu lại bài bị bỏ qua vì VPS hết chỗ (CAPACITY_EXHAUSTED). Test được rút ngắn. */
+  collectRetryMs = 5000;
+  /** Huỷ các lượt hẹn thu lại (đăng xuất / đóng app). */
+  stopCollectRetries() {
+    for (const timer of this.collectRetry.values()) clearTimeout(timer);
+    this.collectRetry.clear();
+  }
+  private scheduleCollect(assignmentId: string) {
+    if (this.collectRetry.has(assignmentId) || this.api.signal?.aborted) return;
+    const timer = setTimeout(() => {
+      this.collectRetry.delete(assignmentId);
+      if (!this.api.signal?.aborted) void this.collect(assignmentId).catch(() => {});
+    }, this.collectRetryMs);
+    timer.unref?.();
+    this.collectRetry.set(assignmentId, timer);
+  }
+  /**
+   * Thu bản nộp mới nhất của từng SV. Lỗi ở một SV (VPS hết chỗ, bản vừa bị thay, bài vừa bị xoá…)
+   * không được chặn các SV và các bài còn lại; VPS hết chỗ thì hẹn thu lại bài đó.
+   */
   async collect(id?: string) {
     const ids = id ? [id] : (await this.api.call('listAssignments')).assignments.map((x) => x.id);
     for (const assignmentId of ids) {
@@ -253,10 +276,30 @@ export class Jobs {
         continue;
       }
       this.collecting.add(assignmentId);
+      let retry = false;
       try {
-        for (const row of (await this.api.call('listSubmissions', assignmentId)).rows) {
+        const stop = (error: unknown) =>
+          this.api.signal?.aborted || (error instanceof ClientError && error.code === 'OFFLINE');
+        // Bài vừa bị xoá (NOT_FOUND)…: bỏ qua bài này, thu tiếp các bài khác.
+        const rows = await this.api.call('listSubmissions', assignmentId).then(
+          (r) => r.rows,
+          (error: unknown) => {
+            if (stop(error)) throw error;
+            return [];
+          },
+        );
+        for (const row of rows) {
           if (!row.latest || (await this.version(assignmentId, row.student)) === row.latest.version) continue;
-          const { submission, ticket } = await this.api.call('collect', row.latest.submissionId);
+          let opened;
+          try {
+            opened = await this.api.call('collect', row.latest.submissionId);
+          } catch (error) {
+            // Mất mạng / đăng xuất: dừng cả lượt, kết nối lại sẽ thu tiếp. Lỗi khác: bỏ qua SV này.
+            if (stop(error)) throw error;
+            if (error instanceof ClientError && error.code === 'CAPACITY_EXHAUSTED') retry = true;
+            continue;
+          }
+          const { submission, ticket } = opened;
           const { operationId } = this.start('collect', assignmentId, async (job) => {
             const dir = await mkdtemp(join(this.files.temp, 'collect-'));
             try {
@@ -277,6 +320,7 @@ export class Jobs {
       } finally {
         this.collecting.delete(assignmentId);
       }
+      if (retry) this.scheduleCollect(assignmentId);
       if (this.collectAgain.delete(assignmentId) && !this.api.signal?.aborted)
         await this.collect(assignmentId);
     }

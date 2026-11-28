@@ -22,6 +22,15 @@ Bản này triển khai phạm vi desktop của B trực tiếp trên nền hợ
 
 [Cách chạy](../../apps/desktop/README.md). Để lặp lại kiểm tra IPC, build toàn workspace rồi chạy `node scripts/smoke.mjs` từ apps/desktop. Đặt CLASSROOM_SMOKE_EXECUTABLE thành đường dẫn file thực thi đã đóng gói để thử bản đó. Test tạo profile và DB riêng.
 
+## Sửa sau review toàn bộ A-Frontend (2026-11-28)
+
+| Lỗi | Sửa | Kiểm chứng |
+|---|---|---|
+| Hạn vé (`expiresAt`, giờ server) bị so với `Date.now()` của máy. Máy chạy nhanh hơn khoảng 2 phút thì mọi lượt truyền hết giờ ngay (đã tái hiện với engine thật). | `RestClient` ước lượng giờ server từ header `Date` của mọi phản hồi và `serverTime` trong WS `welcome`; `Jobs` dùng `api.serverNow()` khi tính timeout và chờ xác nhận vé. | `test/review-fixes.test.ts`: header `Date`, nộp bài khi đồng hồ nhanh 3 phút. |
+| Tự thu bài dừng ở lỗi đầu tiên: `CAPACITY_EXHAUSTED`, `SUBMISSION_SUPERSEDED` hay bài vừa xoá làm bỏ qua mọi SV và bài còn lại cho đến lần kích hoạt sau. | Lỗi của từng SV/bài được bỏ qua để thu tiếp; mất mạng/đăng xuất mới dừng cả lượt. VPS hết chỗ thì hẹn thu lại bài đó sau 5 giây; huỷ hẹn khi đóng phiên. | `test/review-fixes.test.ts`: SV đầu lỗi, SV sau vẫn được thu, có lượt thu lại. |
+
+Hai test mới fail khi đặt lại hành vi cũ và đạt với bản sửa. `npm run check` (297 test) và `tests/e2e/classroom.mjs` đạt trên Linux x64; chưa chạy lại trên Windows.
+
 ## Việc còn lại khi nhóm cho phép tích hợp
 
 - A/B/D chạy với dịch vụ vé, WebSocket và VPS worker thật. Kiểm tra GV phát hành, SV nhận và nộp, GV thu đúng phiên bản, seeder mất kết nối và chuyển nguồn. Server trên nhánh này có phần giả/placeholder, nên chưa nghiệm thu E2E nhiều máy.

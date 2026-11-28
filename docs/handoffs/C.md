@@ -5,6 +5,16 @@
   M2: `f69d512`. M3: `038679c`. Sửa lỗi review: commit "Sửa lỗi critical–medium…" ngay sau đó. Tất cả đã push. Chưa có PR.
 - Phiên bản hợp đồng đang sử dụng: v1 (đề xuất, chưa ai review; sửa `POST /auth/logout`; bổ sung/sửa interface nội bộ server ở M2, M3)
 
+## Sửa sau review toàn bộ A-Frontend (2026-11-28)
+
+- Đăng nhập: các lần đoán gửi song song cùng lọt qua giới hạn 10 lần / 5 phút vì lần sai chỉ được ghi sau
+  khi băm Argon2 (tái hiện trên server cục bộ: 40 song song → 40 lần đoán). Sửa giống bản đã làm trên
+  `C/Backend` (`253c7b8`): ghi trước lần thử, `FailureLimiter.refund` khi không phải sai mật khẩu.
+  Test hồi quy trong `accounts.test.ts` (fail trên mã cũ, đạt trên mã mới).
+- Chưa đưa sang: hai mục còn lại của `253c7b8` (code bài đang tải lên bị tính là sai ở `/join` — giao diện
+  đã ẩn code đến khi phát hành; `onSessionRevoked` — WS đã tự đóng trong ≤ 15 giây nhờ kiểm phiên ở heartbeat).
+- Kiểm chứng: `npm run check` (297 test) và `tests/e2e/classroom.mjs` đạt trên Linux x64.
+
 ## Sửa sau review code M0–M3 (2026-11-17)
 
 Review theo quy trình skill code-reviewer; các lỗi critical–medium đã sửa, kèm test hồi quy, và chạy lại

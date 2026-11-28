@@ -35,6 +35,19 @@ export function serverOrigin(value: string) {
 }
 type Endpoints = typeof endpoints;
 export class RestClient {
+  /**
+   * Giờ server trừ giờ máy (ms). Hạn vé (`expiresAt`) tính theo giờ server; máy SV chạy sai giờ vài
+   * phút thì mọi lượt truyền sẽ hết giờ ngay nếu so thẳng với `Date.now()`.
+   */
+  private clockOffsetMs = 0;
+  /** Giờ hiện tại theo đồng hồ server (ước lượng). */
+  serverNow() {
+    return Date.now() + this.clockOffsetMs;
+  }
+  /** Cập nhật độ lệch từ một mốc giờ server vừa nhận (WS `welcome`, header `Date`). */
+  syncClock(serverTime: number) {
+    if (Number.isFinite(serverTime)) this.clockOffsetMs = serverTime - Date.now();
+  }
   constructor(
     readonly origin: string,
     readonly token = '',
@@ -61,6 +74,9 @@ export class RestClient {
     }).catch(() => {
       throw new ClientError('OFFLINE', 'Không kết nối được máy chủ.');
     });
+    // Header Date chỉ chính xác đến giây (làm tròn xuống): lấy giữa khoảng.
+    const date = response.headers.get('date');
+    if (date) this.syncClock(Date.parse(date) + 500);
     if (!response.ok) {
       const parsed = ApiErrorBodySchema.safeParse(await response.json().catch(() => null));
       if (parsed.success && this.token) {

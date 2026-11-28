@@ -7,7 +7,9 @@ import { appError } from './errors.js';
  * đếm lại từ đầu — chấp nhận được vì cửa sổ chỉ vài phút.
  *
  * Cách dùng: `assertAllowed(keys)` trước khi xử lý (chặn sớm, không tốn băm mật khẩu),
- * `recordFailure(keys)` khi sai, `reset(key)` khi thành công.
+ * `recordFailure(keys)` khi sai, `reset(key)` khi thành công. Nếu giữa kiểm tra và kết luận có `await`
+ * (băm mật khẩu), phải ghi trước rồi `refund(key)` khi lần thử không sai — nếu không, các yêu cầu song
+ * song cùng lọt qua `assertAllowed` (review C/Backend: 100 yêu cầu song song → 66 lần đoán thay vì 10).
  */
 export interface RateLimitRule {
   maxFailures: number;
@@ -56,6 +58,17 @@ export class FailureLimiter {
 
   reset(key: string): void {
     this.windows.delete(key);
+  }
+
+  /**
+   * Trả lại một lần đã ghi bằng recordFailure. Dùng khi ghi trước một lần thử (để các yêu cầu chạy song
+   * song không cùng lọt qua assertAllowed trong lúc chờ băm mật khẩu) rồi hoá ra lần thử không sai.
+   */
+  refund(key: string): void {
+    const window = this.windows.get(key);
+    if (!window || window.resetAt <= this.clock.now().getTime()) return;
+    window.count -= 1;
+    if (window.count <= 0) this.windows.delete(key);
   }
 
   private prune(now: number): void {
