@@ -7,8 +7,10 @@ Thiết kế: mục 7 trong [system-design.md](../../../../docs/system-design.md
 ## Bản giao diện đầu tiên
 
 Đã có giao diện React chạy bằng Vite. Xem [hướng dẫn](../../../../docs/frontend.md).
-`App.tsx` chứa các màn hình, `api.ts` chọn preload hoặc mock có chủ đích, `styles.css`
-là bộ quy tắc giao diện. Kiểu dữ liệu lấy từ shared, không tự định nghĩa DTO.
+`App.tsx` chọn màn đăng nhập (`Login.tsx`) hoặc `Workspace.tsx` (khung, trạng thái dùng chung). Các màn
+hình: `AssignmentsPage.tsx` + `AssignmentDetail.tsx`, `StudentsPage.tsx`, `SettingsPage.tsx`, hộp thoại ở
+`WorkspaceModal.tsx`; `ui.tsx` (logo, `Modal`), `common.ts` (định dạng, `unwrap`, kiểu `Ctx`).
+`api.ts` chọn preload hoặc mock có chủ đích, `styles.css` là bộ quy tắc giao diện. Kiểu dữ liệu lấy từ shared, không tự định nghĩa DTO.
 Checklist dưới là phạm vi mục tiêu; kết quả test/giới hạn được ghi trong bàn giao A.
 
 ## Việc cần làm

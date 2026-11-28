@@ -13,8 +13,8 @@ Quyết định: D-008 trong [decisions.md](../../../../docs/decisions.md).
 | `service.ts` | `AssignmentsService`: tạo/sửa/xoá bài, phát hành, `/join`, thống kê; triển khai `onUploadStored`, `onFetchVerified` |
 | `routes.ts` | Đăng ký endpoint qua `registerEndpoint` |
 
-Server chưa có dịch vụ vé của D nên `index.ts` dùng `unavailableTicketIssuer` (tạo bài trả 503), hoặc
-`FakeTicketIssuer` tự phát hành khi đặt `DEV_FAKE_TRANSFERS=true` (chỉ để thử giao diện).
+`index.ts` dùng dịch vụ vé thật của D (`distribution/`), hoặc `FakeTicketIssuer` tự phát hành khi đặt
+`DEV_FAKE_TRANSFERS=true` (chỉ để thử giao diện).
 
 ## Việc cần làm
 

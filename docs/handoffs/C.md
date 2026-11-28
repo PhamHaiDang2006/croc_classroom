@@ -14,6 +14,8 @@
 - Chưa đưa sang: hai mục còn lại của `253c7b8` (code bài đang tải lên bị tính là sai ở `/join` — giao diện
   đã ẩn code đến khi phát hành; `onSessionRevoked` — WS đã tự đóng trong ≤ 15 giây nhờ kiểm phiên ở heartbeat).
 - Kiểm chứng: `npm run check` (297 test) và `tests/e2e/classroom.mjs` đạt trên Linux x64.
+- Dọn code (không đổi hành vi): xoá `transfers-placeholder.ts` (không còn dùng); gộp kiểm giới hạn manifest
+  của bài tập và bài nộp vào `manifest-limits.ts`; cập nhật README gốc về cách chạy relay, desktop và e2e.
 
 ## Sửa sau review code M0–M3 (2026-11-17)
 
@@ -182,3 +184,14 @@ SQLite `synchronous = NORMAL` có thể mất biên nhận khi mất điện; kh
 - **A**:
   - Review `ipc.ts` từ góc nhìn giao diện.
   - Thử `createMockCrocApi()` và báo những gì còn thiếu cho các màn hình.
+  - Dọn code theo yêu cầu người dùng (2026-11-28, C làm thay, cần A review): tách `renderer/App.tsx`
+    (1.419 dòng) thành `Login`, `Workspace`, `AssignmentsPage`, `AssignmentDetail`, `StudentsPage`,
+    `SettingsPage`, `WorkspaceModal`, `ui`, `common`. JSX chuyển nguyên văn: HTML 11 màn hình ở chế độ
+    xem thử trùng khớp trước/sau; `ui-tests` 7/7 đạt (Chromium hệ thống); không đổi IPC, CSS.
+- **D**:
+  - Dọn code theo yêu cầu người dùng (2026-11-28, C làm thay, cần D review): định dạng lại
+    `distribution/service.ts`, `distribution/peers.ts`, `vps-worker/store.ts` (mỗi lệnh một dòng, hằng số
+    có tên, tách `penalize`, `sameSlot`, `serveQueued`, `confirmReceived`, `Peers.connect`). Không đổi hành vi:
+    giữ nguyên thứ tự câu lệnh (kể cả đặt `keep` trước `hold`/`notify`); `tests/e2e/classroom.mjs` đạt.
+  - Worker đang báo mọi lỗi croc không phải timeout là `peer_disconnected` (`service.ts`, nhánh `!result.ok`
+    trong `work`). Nên giữ `relay_unreachable` / `relay_auth_failed` / `internal` để chẩn đoán cấu hình VPS.

@@ -57,12 +57,16 @@ npm start -w @croc-classroom/server
 
 Server tạo `apps/server/data/db/croc-classroom.sqlite` và áp dụng migration khi khởi động;
 `GET /health` trả trạng thái. Đã có: tài khoản (đăng nhập, kích hoạt, nhập CSV, quản lý SV), `/me`,
-`/config`, bài tập (tạo, sửa, xoá, thống kê), `/join`, nộp bài, biên nhận, danh sách và thu bài. Chưa có
-dịch vụ vé của D nên tạo bài / nộp / thu trả 503; đặt `DEV_FAKE_TRANSFERS=true` trong `.env` để các lượt
-truyền tự "thành công" mà không truyền file (chỉ để thử giao diện).
+`/config`, bài tập (tạo, sửa, xoá, thống kê), `/join`, nộp bài, biên nhận, danh sách và thu bài, cùng dịch
+vụ vé, WebSocket và VPS worker (`distribution/`, `vps-worker/`). Truyền file thật cần relay croc chạy ở
+`RELAY_ADDRESS` (ví dụ `CROC_PASS=<RELAY_PASS> croc relay`) và binary croc 10.7.0: `CROC_BINARY`, hoặc
+`packages/croc-engine/bin/<nền tảng>` (tải bằng `node packages/croc-engine/scripts/download.mjs`), hoặc `croc`
+trong PATH. Đặt `DEV_FAKE_TRANSFERS=true` trong `.env` để các lượt truyền tự "thành công" mà không truyền file
+(chỉ để thử giao diện).
 
-App desktop chưa chạy được: khung Electron do B dựng. Giao diện có thể làm trước với
-`createMockCrocApi()` từ `@croc-classroom/shared/mocks`.
+App desktop (sau `npm run build`): `npm start -w @croc-classroom/desktop`. Giao diện dùng dữ liệu giả:
+`npm run dev -w @croc-classroom/desktop` (`createMockCrocApi()` từ `@croc-classroom/shared/mocks`).
+Kiểm thử đầu–cuối với Electron, server và relay thật: `node tests/e2e/classroom.mjs`.
 
 ## Tính năng chính
 

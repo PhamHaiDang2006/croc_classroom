@@ -85,10 +85,7 @@ export class Jobs {
               : error instanceof ClientError && error.code === 'MANIFEST_INVALID'
                 ? 'verify_failed'
                 : 'internal';
-          if (job.ticket && kind !== 'seed')
-            await this.api
-              .call('ticketResult', job.ticket.ticketId, { outcome: 'failed', reason })
-              .catch(() => {});
+          if (job.ticket && kind !== 'seed') await this.reportFailure(job.ticket, reason);
           update(reason === 'cancelled' ? 'cancelled' : reason === 'timeout' ? 'timeout' : 'failed', {
             error: publicError(error),
           });
@@ -200,23 +197,13 @@ export class Jobs {
       throw new ClientError('BUSY', 'Đang nhận đề này.');
     return this.start('fetch', id, async (job) => {
       for (let attempt = 0; ; attempt++) {
-        const dir = await mkdtemp(join(this.files.temp, 'fetch-'));
         try {
-          this.queued.add(id);
-          const issued = await this.api.call('fetch', id, { localSubnets: this.subnets() });
-          let ticket: IssuedTicket;
-          if (issued.status === 'queued') {
-            job.update('queued', { queuePosition: issued.position });
-            while (!this.ready.has(id)) await delay(200, undefined, { signal: job.signal });
-            ticket = this.ready.get(id)!;
-          } else ticket = issued.ticket;
-          this.queued.delete(id);
-          await this.move(job, ticket, dir, false);
-          job.update('verifying');
-          await verify(dir, manifest);
-          await this.folders.installWork(this.settings().workDir, id, title, dir, manifest);
-          await this.files.keep(id, dir, manifest);
-          await this.confirm(job, ticket);
+          const ticket = await this.fetchTicket(job, id);
+          await this.receiveVerified(job, ticket, manifest, async (dir) => {
+            await this.folders.installWork(this.settings().workDir, id, title, dir, manifest);
+            await this.files.keep(id, dir, manifest);
+            await this.confirm(job, ticket);
+          });
           this.onCache(id);
           return;
         } catch (error) {
@@ -230,20 +217,44 @@ export class Jobs {
           )
             throw error;
           if (job.ticket)
-            await this.api
-              .call('ticketResult', job.ticket.ticketId, {
-                outcome: 'failed',
-                reason: error instanceof TransferFailure ? error.reason : 'verify_failed',
-              })
-              .catch(() => {});
+            await this.reportFailure(job.ticket, error instanceof TransferFailure ? error.reason : 'verify_failed');
           job.ticket = undefined;
         } finally {
           if (this.queued.delete(id)) await this.api.call('leaveFetchQueue', id).catch(() => {});
           this.ready.delete(id);
-          await rm(dir, { recursive: true, force: true });
         }
       }
     });
+  }
+  /** Xin vé nhận đề; đang xếp hàng thì chờ `ticket.ready` qua WS (Connection đặt vào `ready`). */
+  private async fetchTicket(job: Job, id: string): Promise<IssuedTicket> {
+    this.queued.add(id);
+    const issued = await this.api.call('fetch', id, { localSubnets: this.subnets() });
+    if (issued.status === 'queued') {
+      job.update('queued', { queuePosition: issued.position });
+      while (!this.ready.has(id)) await delay(200, undefined, { signal: job.signal });
+    }
+    this.queued.delete(id);
+    return issued.status === 'ticket' ? issued.ticket : this.ready.get(id)!;
+  }
+  /** Nhận vào thư mục tạm, kiểm manifest rồi giao thư mục cho `use`; luôn dọn thư mục tạm. */
+  private async receiveVerified(job: Job, ticket: IssuedTicket, manifest: Manifest, use: (dir: string) => Promise<void>) {
+    const dir = await mkdtemp(join(this.files.temp, job.kind + '-'));
+    try {
+      await this.move(job, ticket, dir, false);
+      job.update('verifying');
+      await verify(dir, manifest);
+      await use(dir);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+  /** Báo server lượt truyền thất bại; lỗi mạng bỏ qua (vé tự hết hạn phía server). */
+  private reportFailure(ticket: IssuedTicket, reason: TransferFailureReason) {
+    return this.api.call('ticketResult', ticket.ticketId, { outcome: 'failed', reason }).then(
+      () => {},
+      () => {},
+    );
   }
   private collecting = new Set<string>();
   private collectAgain = new Set<string>();
@@ -300,21 +311,15 @@ export class Jobs {
             continue;
           }
           const { submission, ticket } = opened;
-          const { operationId } = this.start('collect', assignmentId, async (job) => {
-            const dir = await mkdtemp(join(this.files.temp, 'collect-'));
-            try {
-              await this.move(job, ticket, dir, false);
-              job.update('verifying');
-              await verify(dir, submission.manifest);
+          const { operationId } = this.start('collect', assignmentId, (job) =>
+            this.receiveVerified(job, ticket, submission.manifest, async (dir) => {
               const detail = await this.api.call('getAssignment', assignmentId);
               const base = await this.folders.reserve(this.settings().collectDir, assignmentId, detail.title);
               await this.folders.replace(base, row.student, dir, submission.manifest);
               await this.confirm(job, ticket);
               await this.folders.markVersion(base, row.student, submission.version);
-            } finally {
-              await rm(dir, { recursive: true, force: true });
-            }
-          });
+            }),
+          );
           await this.running.get(operationId)?.done;
         }
       } finally {

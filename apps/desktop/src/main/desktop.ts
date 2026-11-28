@@ -67,6 +67,9 @@ export class Desktop {
       }
     }
   }
+  private saveSettings() {
+    return writeAtomic(this.prefs, JSON.stringify(this.settings));
+  }
   private canPersist() {
     return (
       safeStorage.isEncryptionAvailable() &&
@@ -105,7 +108,7 @@ export class Desktop {
     const ws: Connection = new Connection(jobs, this.emit, expire, user.role === 'lecturer');
     this.account = { api, user: UserSchema.parse(user), files, jobs, ws, abort };
     this.settings = { ...this.settings, serverUrl: api.origin };
-    await writeAtomic(this.prefs, JSON.stringify(this.settings));
+    await this.saveSettings();
     ws.connect();
     if (user.role === 'lecturer') void jobs.collect().catch(() => {});
   }
@@ -164,7 +167,7 @@ export class Desktop {
     'settings.get': async () => this.settings,
     'settings.update': async (p) => {
       this.settings = AppSettingsSchema.parse({ ...this.settings, ...p });
-      await writeAtomic(this.prefs, JSON.stringify(this.settings));
+      await this.saveSettings();
       const a = this.account;
       if (a)
         for (const id of a.files.holdings.keys()) {
@@ -179,7 +182,7 @@ export class Desktop {
       const pick = await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
       if (pick.canceled) return null;
       this.settings = { ...this.settings, [field]: pick.filePaths[0]! };
-      await writeAtomic(this.prefs, JSON.stringify(this.settings));
+      await this.saveSettings();
       return this.settings;
     },
     'dialog.pickPayload': async ({ mode }) => {

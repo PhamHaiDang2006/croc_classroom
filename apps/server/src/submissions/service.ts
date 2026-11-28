@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import {
-  checkManifestLimits,
   ManifestSchema,
   manifestTotalSize,
   type CollectTicket,
@@ -13,6 +12,7 @@ import {
 import { manifestHash } from '@croc-classroom/shared/node';
 import type { Db } from '../db/index.js';
 import { appError } from '../http/errors.js';
+import { assertManifestWithinLimits } from '../manifest-limits.js';
 import type { Clock } from '../ports/clock.js';
 import type { SubmissionCommitResult, TicketIssuer, TransferOutcomeHandler } from '../ports/transfers.js';
 import { latestReceipt, toReceipt, type SubmissionRow } from './queries.js';
@@ -61,14 +61,10 @@ export class SubmissionsService implements SubmissionOutcomes {
       this.requireAssignment(assignmentId);
       if (!this.isParticipant(assignmentId, studentId)) throw appError('NOT_PARTICIPANT');
 
-      const problems = checkManifestLimits(manifest, {
+      assertManifestWithinLimits(manifest, {
         maxFiles: this.deps.limits.maxManifestFiles,
         maxBytes: this.deps.limits.maxSubmissionBytes,
       });
-      const tooLarge = problems.find((p) => p.code === 'too_large');
-      if (tooLarge) throw appError('PAYLOAD_TOO_LARGE', tooLarge.message);
-      const tooMany = problems.find((p) => p.code === 'too_many_files');
-      if (tooMany) throw appError('MANIFEST_INVALID', tooMany.message);
 
       const ticket = await this.deps.tickets.openSubmission({
         assignmentId,

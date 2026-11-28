@@ -119,7 +119,9 @@ thay đổi các yêu cầu đã chốt ở đó.
   và `participants.received_*` (qua `onFetchVerified` — bổ sung vào interface). D ghi `holdings` và gửi
   WS `assignment.published` sau khi `onUploadStored` trả về. `stats.seeding` lấy từ `SeedingStats` của D.
 - Thêm cột `assignments.storage_ref` (migration 2): tham chiếu mờ tới bản đề trong kho, do worker cấp.
-- Server chạy được trước khi có D: mặc định `unavailableTicketIssuer` (tạo bài → 503 có thông báo rõ);
+- Server chạy được trước khi có D: mặc định `unavailableTicketIssuer` (tạo bài → 503 có thông báo rõ).
+  (2026-11-28: A-Frontend đã dùng `Distribution` của D; `unavailableTicketIssuer` không còn dùng nên đã xoá.)
+  Chế độ thử giao diện:
   `DEV_FAKE_TRANSFERS=true` dùng vé giả, bài tự phát hành sau ~1 giây, log cảnh báo khi khởi động —
   chỉ để A/B thử giao diện với server thật, không bao giờ bật trên VPS.
 

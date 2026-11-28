@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import {
-  checkManifestLimits,
   ManifestSchema,
   manifestTotalSize,
   type AssignmentStats,
@@ -20,6 +19,7 @@ import type { z } from 'zod';
 import type { Db } from '../db/index.js';
 import { appError } from '../http/errors.js';
 import { ipBucket, type FailureLimiter } from '../http/rate-limit.js';
+import { assertManifestWithinLimits } from '../manifest-limits.js';
 import type { Clock } from '../ports/clock.js';
 import type { SeedingStats } from '../ports/seeding.js';
 import type { TicketIssuer, TransferOutcomeHandler, UploadCommitResult } from '../ports/transfers.js';
@@ -75,7 +75,10 @@ export class AssignmentsService implements AssignmentOutcomes {
     request: z.output<typeof CreateAssignmentRequestSchema>,
   ): Promise<{ assignment: LecturerAssignment; ticket: IssuedTicket }> {
     const manifest = request.manifest;
-    this.assertManifestWithinLimits(manifest);
+    assertManifestWithinLimits(manifest, {
+      maxFiles: this.deps.limits.maxManifestFiles,
+      maxBytes: this.deps.limits.maxAssignmentBytes,
+    });
 
     const id = randomUUID();
     return withAssignmentLock(this.db, id, async () => {
@@ -247,17 +250,6 @@ export class AssignmentsService implements AssignmentOutcomes {
   }
 
   // ------------------------------------------------------------ tiện ích
-
-  private assertManifestWithinLimits(manifest: Manifest): void {
-    const problems = checkManifestLimits(manifest, {
-      maxFiles: this.deps.limits.maxManifestFiles,
-      maxBytes: this.deps.limits.maxAssignmentBytes,
-    });
-    const tooLarge = problems.find((p) => p.code === 'too_large');
-    if (tooLarge) throw appError('PAYLOAD_TOO_LARGE', tooLarge.message);
-    const tooMany = problems.find((p) => p.code === 'too_many_files');
-    if (tooMany) throw appError('MANIFEST_INVALID', tooMany.message);
-  }
 
   private uniqueCodePhrase(): string {
     const exists = this.db.prepare('SELECT 1 FROM assignments WHERE code_phrase = ?');

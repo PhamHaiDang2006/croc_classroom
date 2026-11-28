@@ -29,6 +29,8 @@ Bản này triển khai phạm vi desktop của B trực tiếp trên nền hợ
 | Hạn vé (`expiresAt`, giờ server) bị so với `Date.now()` của máy. Máy chạy nhanh hơn khoảng 2 phút thì mọi lượt truyền hết giờ ngay (đã tái hiện với engine thật). | `RestClient` ước lượng giờ server từ header `Date` của mọi phản hồi và `serverTime` trong WS `welcome`; `Jobs` dùng `api.serverNow()` khi tính timeout và chờ xác nhận vé. | `test/review-fixes.test.ts`: header `Date`, nộp bài khi đồng hồ nhanh 3 phút. |
 | Tự thu bài dừng ở lỗi đầu tiên: `CAPACITY_EXHAUSTED`, `SUBMISSION_SUPERSEDED` hay bài vừa xoá làm bỏ qua mọi SV và bài còn lại cho đến lần kích hoạt sau. | Lỗi của từng SV/bài được bỏ qua để thu tiếp; mất mạng/đăng xuất mới dừng cả lượt. VPS hết chỗ thì hẹn thu lại bài đó sau 5 giây; huỷ hẹn khi đóng phiên. | `test/review-fixes.test.ts`: SV đầu lỗi, SV sau vẫn được thu, có lượt thu lại. |
 
+Dọn code (không đổi hành vi): `jobs.ts` gộp bước "nhận vào thư mục tạm → kiểm manifest → dọn" của nhận đề và thu bài (`receiveVerified`), tách xin vé/xếp hàng (`fetchTicket`) và báo vé lỗi (`reportFailure`); `desktop.ts` gộp ghi cài đặt (`saveSettings`).
+
 Hai test mới fail khi đặt lại hành vi cũ và đạt với bản sửa. `npm run check` (297 test) và `tests/e2e/classroom.mjs` đạt trên Linux x64; chưa chạy lại trên Windows.
 
 ## Việc còn lại khi nhóm cho phép tích hợp
